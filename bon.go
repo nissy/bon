@@ -7,24 +7,16 @@ import (
 )
 
 const (
-	GET        = "GET"
-	POST       = "POST"
-	PUT        = "PUT"
-	DELETE     = "DELETE"
-	HEAD       = "HEAD"
-	OPTIONS    = "OPTIONS"
-	PATCH      = "PATCH"
-	CONNECT    = "CONNECT"
-	TRACE      = "TRACE"
 	ContextKey = "BON"
 )
 
 type (
 	Mux struct {
-		tree     *node
-		pool     sync.Pool
-		maxParam int
-		NotFound http.HandlerFunc
+		tree        *node
+		middlewares []Middleware
+		pool        sync.Pool
+		maxParam    int
+		NotFound    http.HandlerFunc
 	}
 
 	node struct {
@@ -49,7 +41,11 @@ type (
 	}
 )
 
-func NewMux() *Mux {
+func NewRouter() *Mux {
+	return newMux()
+}
+
+func newMux() *Mux {
 	m := &Mux{
 		NotFound: http.NotFound,
 	}
@@ -123,40 +119,44 @@ func isStaticPattern(pattern string) bool {
 	return true
 }
 
+func (m *Mux) Use(middlewares ...Middleware) {
+	m.middlewares = append(m.middlewares, middlewares...)
+}
+
 func (m *Mux) Get(pattern string, handlerFunc http.HandlerFunc, middlewares ...Middleware) {
-	m.Handle(GET, pattern, handlerFunc, middlewares...)
+	m.Handle("GET", pattern, handlerFunc, middlewares...)
 }
 
 func (m *Mux) Post(pattern string, handlerFunc http.HandlerFunc, middlewares ...Middleware) {
-	m.Handle(POST, pattern, handlerFunc, middlewares...)
+	m.Handle("POST", pattern, handlerFunc, middlewares...)
 }
 
 func (m *Mux) Put(pattern string, handlerFunc http.HandlerFunc, middlewares ...Middleware) {
-	m.Handle(PUT, pattern, handlerFunc, middlewares...)
+	m.Handle("PUT", pattern, handlerFunc, middlewares...)
 }
 
 func (m *Mux) Delete(pattern string, handlerFunc http.HandlerFunc, middlewares ...Middleware) {
-	m.Handle(DELETE, pattern, handlerFunc, middlewares...)
+	m.Handle("DELETE", pattern, handlerFunc, middlewares...)
 }
 
 func (m *Mux) Head(pattern string, handlerFunc http.HandlerFunc, middlewares ...Middleware) {
-	m.Handle(HEAD, pattern, handlerFunc, middlewares...)
+	m.Handle("HEAD", pattern, handlerFunc, middlewares...)
 }
 
 func (m *Mux) Options(pattern string, handlerFunc http.HandlerFunc, middlewares ...Middleware) {
-	m.Handle(OPTIONS, pattern, handlerFunc, middlewares...)
+	m.Handle("OPTIONS", pattern, handlerFunc, middlewares...)
 }
 
 func (m *Mux) Patch(pattern string, handlerFunc http.HandlerFunc, middlewares ...Middleware) {
-	m.Handle(PATCH, pattern, handlerFunc, middlewares...)
+	m.Handle("PATCH", pattern, handlerFunc, middlewares...)
 }
 
 func (m *Mux) Connect(pattern string, handlerFunc http.HandlerFunc, middlewares ...Middleware) {
-	m.Handle(CONNECT, pattern, handlerFunc, middlewares...)
+	m.Handle("CONNECT", pattern, handlerFunc, middlewares...)
 }
 
 func (m *Mux) Trace(pattern string, handlerFunc http.HandlerFunc, middlewares ...Middleware) {
-	m.Handle(TRACE, pattern, handlerFunc, middlewares...)
+	m.Handle("TRACE", pattern, handlerFunc, middlewares...)
 }
 
 func (m *Mux) Handle(method, pattern string, handler http.Handler, middlewares ...Middleware) {
@@ -173,7 +173,7 @@ func (m *Mux) Handle(method, pattern string, handler http.Handler, middlewares .
 	if isStaticPattern(pattern) {
 		if _, ok := parent.child[pattern]; !ok {
 			child := newNode()
-			child.middlewares = middlewares
+			child.middlewares = append(m.middlewares, middlewares...)
 			child.handler = handler
 			parent.newChild(child, pattern)
 		}
@@ -225,7 +225,7 @@ func (m *Mux) Handle(method, pattern string, handler http.Handler, middlewares .
 		}
 
 		if i >= len(pattern)-1 {
-			child.middlewares = middlewares
+			child.middlewares = append(m.middlewares, middlewares...)
 			child.handler = handler
 		}
 
