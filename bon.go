@@ -119,6 +119,14 @@ func isStaticPattern(pattern string) bool {
 	return true
 }
 
+func (m *Mux) Group(pattern string, middlewares ...Middleware) *Group {
+	return &Group{
+		mux:         m,
+		prefix:      pattern,
+		middlewares: append(m.middlewares, middlewares...),
+	}
+}
+
 func (m *Mux) Use(middlewares ...Middleware) {
 	m.middlewares = append(m.middlewares, middlewares...)
 }
