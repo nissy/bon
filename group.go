@@ -57,7 +57,3 @@ func (g *Group) Trace(pattern string, handlerFunc http.HandlerFunc, middlewares 
 func (g *Group) Handle(method, pattern string, handler http.Handler, middlewares ...Middleware) {
 	g.mux.Handle(method, g.prefix+pattern, handler, middlewares...)
 }
-
-func (g *Group) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	g.mux.ServeHTTP(w, r)
-}

@@ -10,6 +10,7 @@ package main
 
 import (
 	"net/http"
+
 	"github.com/ngc224/bon"
 )
 
@@ -22,29 +23,29 @@ func main() {
 
 	http.ListenAndServe(":8080", r)
 }
-
 ```
 
-#### Group
+#### Param & Group
 
 ```
 package main
 
 import (
 	"net/http"
+
 	"github.com/ngc224/bon"
 )
 
 func main() {
 	r := bon.NewRouter()
 
-	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("Halo"))
+	users := r.Group("/users/:name")
+	users.Get("/:age", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("Hallo " + bon.URLParam(r, "name") + " " + bon.URLParam(r, "age")))
 	})
 
 	http.ListenAndServe(":8080", r)
 }
-
 ```
 
 #### Middleware
