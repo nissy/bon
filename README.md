@@ -48,6 +48,26 @@ func main() {
 }
 ```
 
+#### FileServer
+
+```
+package main
+
+import (
+	"net/http"
+
+	"github.com/ngc224/bon"
+)
+
+func main() {
+	r := bon.NewRouter()
+
+	r.FileServer("/assets/", "static/")
+
+	http.ListenAndServe(":8080", r)
+}
+```
+
 #### Middleware
 
 ```

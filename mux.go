@@ -163,6 +163,18 @@ func (m *Mux) Trace(pattern string, handlerFunc http.HandlerFunc, middlewares ..
 	m.Handle("TRACE", pattern, handlerFunc, middlewares...)
 }
 
+func (m *Mux) FileServer(pattern, dir string) {
+	if !isStaticPattern(pattern) {
+		panic("It is not a static pattern")
+	}
+
+	if pattern[len(pattern)-1] != '/' {
+		pattern += "/"
+	}
+
+	m.Handle("GET", pattern+"*", http.StripPrefix(pattern, http.FileServer(http.Dir(dir))))
+}
+
 func (m *Mux) Handle(method, pattern string, handler http.Handler, middlewares ...Middleware) {
 	if pattern[0] != '/' {
 		panic("There is no leading slash")
