@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/ngc224/bon"
-	"github.com/ngc224/bon/middleware"
+	"github.com/nissy/bon"
+	"github.com/nissy/bon/middleware"
 )
 
 func main() {
