@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	defaultCfgName = "skeleton.conf"
+	defaultCfgName = "api.conf"
 	version        = "0.1"
 )
 
@@ -44,13 +44,13 @@ func run() error {
 		return nil
 	}
 
-	service := newService()
+	sv := newService()
 
-	if err := service.readConfig(*cfgName); err != nil {
+	if err := sv.applyConfig(*cfgName); err != nil {
 		return err
 	}
 
-	if err := service.run(); err != nil {
+	if err := sv.serve(); err != nil {
 		return err
 	}
 
