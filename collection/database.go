@@ -1,4 +1,4 @@
-package multiple
+package collection
 
 import (
 	"database/sql"

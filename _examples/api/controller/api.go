@@ -4,11 +4,11 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/nissy/bon/multiple"
+	"github.com/nissy/bon/collection"
 )
 
 type API struct {
-	Databases multiple.Databases
+	Databases collection.Databases
 }
 
 func (api *API) Build() error {
