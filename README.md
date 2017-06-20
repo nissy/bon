@@ -1,9 +1,15 @@
 # BON
 Go http router
 
-### Examples
+## Install
 
-#### Easy
+```
+go get -u github.com/nissy/bon
+```
+
+## Examples
+
+### Easy
 
 ```
 package main
@@ -25,7 +31,7 @@ func main() {
 }
 ```
 
-#### Param & Group
+### Group
 
 ```
 package main
@@ -48,7 +54,7 @@ func main() {
 }
 ```
 
-#### FileServer
+### FileServer
 
 ```
 package main
@@ -68,7 +74,7 @@ func main() {
 }
 ```
 
-#### Middleware
+### Middleware
 
 ```
 package main
@@ -101,7 +107,7 @@ func main() {
 }
 ```
 
-### Benchmark
+## Benchmarks
 
 https://github.com/nissy/go-http-routing-benchmark
 
