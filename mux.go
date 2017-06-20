@@ -23,6 +23,8 @@ type (
 		NotFound    http.HandlerFunc
 	}
 
+	nodeKind uint8
+
 	node struct {
 		kind        nodeKind
 		parent      *node
@@ -33,8 +35,6 @@ type (
 	}
 
 	Middleware func(http.Handler) http.Handler
-
-	nodeKind uint8
 
 	Context struct {
 		params params
