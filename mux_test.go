@@ -48,7 +48,7 @@ func (p *Pattern) Close() {
 	p.Server.Close()
 }
 
-func TestMuxBasicParam(t *testing.T) {
+func TestMuxParam(t *testing.T) {
 	r := NewRouter()
 
 	r.Get("/users/:name", func(w http.ResponseWriter, r *http.Request) {
@@ -57,9 +57,30 @@ func TestMuxBasicParam(t *testing.T) {
 
 	p := &Pattern{
 		Reqests: []*Reqest{
-			{"/users/taro", 200, "taro"},
-			{"/users/jiro", 200, "jiro"},
+			{"/users/aaa", 200, "aaa"},
+			{"/users/bbb", 200, "bbb"},
 			{"/users", 404, BodyNotFound},
+		},
+
+		Server: httptest.NewServer(r),
+	}
+
+	defer p.Close()
+	p.Do(t)
+}
+
+func TestMuxGroupParam(t *testing.T) {
+	r := NewRouter()
+
+	users := r.Group("/users/:name")
+	users.Get("/:age", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("name=" + URLParam(r, "name") + ", age=" + URLParam(r, "age")))
+	})
+
+	p := &Pattern{
+		Reqests: []*Reqest{
+			{"/users/aaa/24", 200, "name=aaa, age=24"},
+			{"/users/bbb/23", 200, "name=bbb, age=23"},
 		},
 
 		Server: httptest.NewServer(r),

@@ -8,6 +8,10 @@ import (
 
 const (
 	ContextKey = "BON"
+
+	nodeKindStatic nodeKind = iota
+	nodeKindParam
+	nodeKindCatchAll
 )
 
 type (
@@ -20,6 +24,7 @@ type (
 	}
 
 	node struct {
+		kind        nodeKind
 		parent      *node
 		child       map[string]*node
 		middlewares []Middleware
@@ -28,6 +33,8 @@ type (
 	}
 
 	Middleware func(http.Handler) http.Handler
+
+	nodeKind uint8
 
 	Context struct {
 		params params
@@ -65,6 +72,15 @@ func newNode() *node {
 func (n *node) newChild(child *node, edge string) *node {
 	if len(n.child) == 0 {
 		n.child = make(map[string]*node)
+	}
+
+	switch edge {
+	case ":":
+		child.kind = nodeKindParam
+	case "*":
+		child.kind = nodeKindCatchAll
+	default:
+		child.kind = nodeKindStatic
 	}
 
 	child.parent = n
@@ -316,6 +332,10 @@ func (m *Mux) lookup(r *http.Request) (*node, *Context) {
 			}
 
 			if len(child.child) == 0 {
+				if child.kind == nodeKindCatchAll && child.handler != nil {
+					return child, ctx
+				}
+
 				break
 			}
 
