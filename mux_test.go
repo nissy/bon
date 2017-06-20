@@ -7,6 +7,8 @@ import (
 	"testing"
 )
 
+const BodyNotFound = "404 page not found\n"
+
 type Pattern struct {
 	Reqests []*Reqest
 	Server  *httptest.Server
@@ -57,7 +59,7 @@ func TestMuxBasicParam(t *testing.T) {
 		Reqests: []*Reqest{
 			{"/users/taro", 200, "taro"},
 			{"/users/jiro", 200, "jiro"},
-			{"/users", 404, "404 page not found\n"},
+			{"/users", 404, BodyNotFound},
 		},
 
 		Server: httptest.NewServer(r),
