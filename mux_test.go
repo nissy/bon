@@ -7,61 +7,62 @@ import (
 	"testing"
 )
 
-func setup() *httptest.Server {
-	r := NewRouter()
-	r.Get("/foo", foo)
-	r.Get("/bar", bar)
-	r.Get("/baz", baz)
-	return httptest.NewServer(r)
+type Pattern struct {
+	Reqests []*Reqest
+	Server  *httptest.Server
 }
 
-func teardown(ts *httptest.Server) {
-	ts.Close()
+type Reqest struct {
+	Path           string
+	WantStatusCode int
+	WantBody       string
 }
 
-func TestMux(t *testing.T) {
-	ts := setup()
-	defer teardown(ts)
-
-	cases := []struct {
-		Path   string
-		Status int
-		Body   string
-	}{
-		{"/foo", 200, "foo"},
-		{"/bar", 200, "bar"},
-		{"/baz", 200, "baz"},
-		{"/hoge", 404, "404 page not found\n"},
-	}
-
-	for _, tc := range cases {
-		res, err := http.Get(ts.URL + tc.Path)
+func (p *Pattern) Do(t *testing.T) {
+	for _, v := range p.Reqests {
+		res, err := http.Get(p.Server.URL + v.Path)
 
 		if err != nil {
-			t.Fatalf("something went to wrong: %s", err)
+			t.Fatalf(err.Error())
 		}
 
-		if got, want := res.StatusCode, tc.Status; got != want {
-			t.Fatalf("StatusCode=%d, want=%d", got, want)
+		if res.StatusCode != v.WantStatusCode {
+			t.Fatalf("Path=%q, StatusCode=%d, Want=%d", v.Path, res.StatusCode, v.WantStatusCode)
 		}
 
-		buf := new(bytes.Buffer)
-		buf.ReadFrom(res.Body)
+		var buf bytes.Buffer
 
-		if got, want := buf.String(), tc.Body; got != want {
-			t.Fatalf("Body=%q, want=%q", got, want)
+		if _, err := buf.ReadFrom(res.Body); err != nil {
+			t.Fatalf(err.Error())
+		}
+
+		if buf.String() != v.WantBody {
+			t.Fatalf("Path=%q, Body=%q, Want=%q", v.Path, buf.String(), v.WantBody)
 		}
 	}
 }
 
-func foo(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte("foo"))
+func (p *Pattern) Close() {
+	p.Server.Close()
 }
 
-func bar(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte("bar"))
-}
+func TestMuxBasicParam(t *testing.T) {
+	r := NewRouter()
 
-func baz(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte("baz"))
+	r.Get("/users/:name", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte([]byte(URLParam(r, "name"))))
+	})
+
+	p := &Pattern{
+		Reqests: []*Reqest{
+			{"/users/taro", 200, "taro"},
+			{"/users/jiro", 200, "jiro"},
+			{"/users", 404, "404 page not found\n"},
+		},
+
+		Server: httptest.NewServer(r),
+	}
+
+	defer p.Close()
+	p.Do(t)
 }
