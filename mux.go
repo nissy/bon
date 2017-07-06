@@ -98,6 +98,11 @@ func newContext(cap int) *Context {
 	}
 }
 
+func resetContext(ctx *Context) *Context {
+	ctx.params = ctx.params[:0]
+	return ctx
+}
+
 func (ps *params) Set(key, value string) {
 	*ps = append(*ps, param{
 		key:   key,
@@ -314,6 +319,7 @@ func (m *Mux) lookup(r *http.Request) (*node, *Context) {
 				if ctx == nil {
 					ctx = m.pool.Get().(*Context)
 				}
+
 				ctx.params.Set(child.param, edge)
 
 			} else if child = parent.childs["*"]; child == nil {
@@ -322,6 +328,7 @@ func (m *Mux) lookup(r *http.Request) (*node, *Context) {
 					if ctx == nil {
 						ctx = m.pool.Get().(*Context)
 					}
+
 					ctx.params.Set(child.param, rPath[bsi:si-1])
 					si = bsi
 
@@ -367,8 +374,7 @@ func (m *Mux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			n.handler.ServeHTTP(w, r)
 
 			if ctx != nil {
-				ctx.params = ctx.params[:0]
-				m.pool.Put(ctx)
+				m.pool.Put(resetContext(ctx))
 			}
 
 			return
@@ -383,8 +389,7 @@ func (m *Mux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.ServeHTTP(w, r)
 
 		if ctx != nil {
-			ctx.params = ctx.params[:0]
-			m.pool.Put(ctx)
+			m.pool.Put(resetContext(ctx))
 		}
 
 		return
