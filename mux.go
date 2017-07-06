@@ -32,7 +32,7 @@ type (
 	node struct {
 		kind        nodeKind
 		parent      *node
-		childs      map[string]*node
+		children    map[string]*node
 		middlewares []Middleware
 		handler     http.Handler
 		param       string
@@ -69,13 +69,13 @@ func newMux() *Mux {
 
 func newNode() *node {
 	return &node{
-		childs: make(map[string]*node),
+		children: make(map[string]*node),
 	}
 }
 
 func (n *node) newChild(child *node, edge string) *node {
-	if len(n.childs) == 0 {
-		n.childs = make(map[string]*node)
+	if len(n.children) == 0 {
+		n.children = make(map[string]*node)
 	}
 
 	switch edge {
@@ -88,7 +88,7 @@ func (n *node) newChild(child *node, edge string) *node {
 	}
 
 	child.parent = n
-	n.childs[edge] = child
+	n.children[edge] = child
 	return child
 }
 
@@ -205,14 +205,14 @@ func (m *Mux) Handle(method, pattern string, handler http.Handler, middlewares .
 		panic("There is no leading slash")
 	}
 
-	parent := m.tree.childs[method]
+	parent := m.tree.children[method]
 
 	if parent == nil {
 		parent = m.tree.newChild(newNode(), method)
 	}
 
 	if isStaticPattern(pattern) {
-		if _, ok := parent.childs[pattern]; !ok {
+		if _, ok := parent.children[pattern]; !ok {
 			child := newNode()
 			child.middlewares = append(m.middlewares, middlewares...)
 			child.handler = handler
@@ -254,7 +254,7 @@ func (m *Mux) Handle(method, pattern string, handler http.Handler, middlewares .
 			edge = "*"
 		}
 
-		child, exist := parent.childs[edge]
+		child, exist := parent.children[edge]
 
 		if !exist {
 			child = newNode()
@@ -286,14 +286,14 @@ func (m *Mux) Handle(method, pattern string, handler http.Handler, middlewares .
 func (m *Mux) lookup(r *http.Request) (*node, *Context) {
 	var parent, child *node
 
-	if parent = m.tree.childs[r.Method]; parent == nil {
+	if parent = m.tree.children[r.Method]; parent == nil {
 		return nil, nil
 	}
 
 	rPath := r.URL.Path
 
 	//STATIC PATH
-	if child = parent.childs[rPath]; child != nil {
+	if child = parent.children[rPath]; child != nil {
 		return child, nil
 	}
 
@@ -314,17 +314,17 @@ func (m *Mux) lookup(r *http.Request) (*node, *Context) {
 
 		edge := rPath[si:ei]
 
-		if child = parent.childs[edge]; child == nil {
-			if child = parent.childs[":"]; child != nil {
+		if child = parent.children[edge]; child == nil {
+			if child = parent.children[":"]; child != nil {
 				if ctx == nil {
 					ctx = m.pool.Get().(*Context)
 				}
 
 				ctx.params.Set(child.param, edge)
 
-			} else if child = parent.childs["*"]; child == nil {
+			} else if child = parent.children["*"]; child == nil {
 				//BACKTRACK
-				if child = parent.parent.childs[":"]; child != nil {
+				if child = parent.parent.children[":"]; child != nil {
 					if ctx == nil {
 						ctx = m.pool.Get().(*Context)
 					}
@@ -332,7 +332,7 @@ func (m *Mux) lookup(r *http.Request) (*node, *Context) {
 					ctx.params.Set(child.param, rPath[bsi:si-1])
 					si = bsi
 
-				} else if child = parent.parent.childs["*"]; child != nil {
+				} else if child = parent.parent.children["*"]; child != nil {
 					si = bsi
 				}
 			}
@@ -343,7 +343,7 @@ func (m *Mux) lookup(r *http.Request) (*node, *Context) {
 				return child, ctx
 			}
 
-			if len(child.childs) == 0 {
+			if len(child.children) == 0 {
 				if child.kind == nodeKindCatchAll && child.handler != nil {
 					return child, ctx
 				}

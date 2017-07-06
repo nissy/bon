@@ -111,21 +111,16 @@ func main() {
 
 https://github.com/nissy/go-http-routing-benchmark
 
-```go
-BenchmarkBon_Param        	 3000000	       461 ns/op	     304 B/op	       2 allocs/op
-BenchmarkBon_Param5       	 2000000	       554 ns/op	     304 B/op	       2 allocs/op
-BenchmarkBon_Param20      	 1000000	      1153 ns/op	     304 B/op	       2 allocs/op
-BenchmarkBon_ParamWrite   	 3000000	       515 ns/op	     304 B/op	       2 allocs/op
-BenchmarkBon_GithubStatic 	20000000	      60.5 ns/op	       0 B/op	       0 allocs/op
-BenchmarkBon_GithubParam  	 3000000	       591 ns/op	     304 B/op	       2 allocs/op
-BenchmarkBon_GithubAll    	   10000	    107487 ns/op	   50770 B/op	     334 allocs/op
-BenchmarkBon_GPlusStatic  	30000000	      38.2 ns/op	       0 B/op	       0 allocs/op
-BenchmarkBon_GPlusParam   	 3000000	       469 ns/op	     304 B/op	       2 allocs/op
-BenchmarkBon_GPlus2Params 	 3000000	       540 ns/op	     304 B/op	       2 allocs/op
-BenchmarkBon_GPlusAll     	  200000	      5778 ns/op	    3344 B/op	      22 allocs/op
-BenchmarkBon_ParseStatic  	30000000	      44.6 ns/op	       0 B/op	       0 allocs/op
-BenchmarkBon_ParseParam   	 3000000	       469 ns/op	     304 B/op	       2 allocs/op
-BenchmarkBon_Parse2Params 	 3000000	       532 ns/op	     304 B/op	       2 allocs/op
-BenchmarkBon_ParseAll     	  200000	      8678 ns/op	    4864 B/op	      32 allocs/op
-BenchmarkBon_StaticAll    	  200000	     10759 ns/op	       0 B/op	       0 allocs/op
+```
+BenchmarkBon_GithubAll           	   10000	    147659 ns/op	   50771 B/op	     334 allocs/op
+BenchmarkBeego_GithubAll         	    5000	    302926 ns/op	   74709 B/op	     812 allocs/op
+BenchmarkChi_GithubAll           	   10000	    176679 ns/op	   61716 B/op	     406 allocs/op
+BenchmarkDenco_GithubAll         	   20000	     66115 ns/op	   20224 B/op	     167 allocs/op
+BenchmarkGin_GithubAll           	   50000	     22576 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHttpRouter_GithubAll    	   30000	     45654 ns/op	   13792 B/op	     167 allocs/op
+BenchmarkLARS_GithubAll          	  100000	     22130 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPossum_GithubAll        	   10000	    255253 ns/op	   84453 B/op	     609 allocs/op
+BenchmarkRivet_GithubAll         	   20000	     78078 ns/op	   16272 B/op	     167 allocs/op
+BenchmarkTango_GithubAll         	    5000	    344786 ns/op	   63844 B/op	    1618 allocs/op
+BenchmarkVulcan_GithubAll        	    5000	    217962 ns/op	   19894 B/op	     609 allocs/op
 ```
