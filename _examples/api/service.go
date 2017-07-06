@@ -7,11 +7,11 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/BurntSushi/toml"
 	"github.com/facebookgo/grace/gracehttp"
 	"github.com/nissy/bon"
 	"github.com/nissy/bon/_examples/api/controller"
 	"github.com/nissy/bon/middleware"
-	"gopkg.in/BurntSushi/toml.v0"
 )
 
 type (

@@ -7,12 +7,16 @@ import (
 )
 
 const (
-	ContextKey = "BON"
-
 	nodeKindStatic nodeKind = iota
 	nodeKindParam
 	nodeKindCatchAll
 )
+
+var ContextKey = &struct {
+	name string
+}{
+	name: "BON",
+}
 
 type (
 	Mux struct {
@@ -28,7 +32,7 @@ type (
 	node struct {
 		kind        nodeKind
 		parent      *node
-		child       map[string]*node
+		childs      map[string]*node
 		middlewares []Middleware
 		handler     http.Handler
 		param       string
@@ -65,13 +69,13 @@ func newMux() *Mux {
 
 func newNode() *node {
 	return &node{
-		child: make(map[string]*node),
+		childs: make(map[string]*node),
 	}
 }
 
 func (n *node) newChild(child *node, edge string) *node {
-	if len(n.child) == 0 {
-		n.child = make(map[string]*node)
+	if len(n.childs) == 0 {
+		n.childs = make(map[string]*node)
 	}
 
 	switch edge {
@@ -84,7 +88,7 @@ func (n *node) newChild(child *node, edge string) *node {
 	}
 
 	child.parent = n
-	n.child[edge] = child
+	n.childs[edge] = child
 	return child
 }
 
@@ -196,14 +200,14 @@ func (m *Mux) Handle(method, pattern string, handler http.Handler, middlewares .
 		panic("There is no leading slash")
 	}
 
-	parent := m.tree.child[method]
+	parent := m.tree.childs[method]
 
 	if parent == nil {
 		parent = m.tree.newChild(newNode(), method)
 	}
 
 	if isStaticPattern(pattern) {
-		if _, ok := parent.child[pattern]; !ok {
+		if _, ok := parent.childs[pattern]; !ok {
 			child := newNode()
 			child.middlewares = append(m.middlewares, middlewares...)
 			child.handler = handler
@@ -245,7 +249,7 @@ func (m *Mux) Handle(method, pattern string, handler http.Handler, middlewares .
 			edge = "*"
 		}
 
-		child, exist := parent.child[edge]
+		child, exist := parent.childs[edge]
 
 		if !exist {
 			child = newNode()
@@ -275,63 +279,64 @@ func (m *Mux) Handle(method, pattern string, handler http.Handler, middlewares .
 }
 
 func (m *Mux) lookup(r *http.Request) (*node, *Context) {
-	s := r.URL.Path
 	var parent, child *node
 
-	if parent = m.tree.child[r.Method]; parent == nil {
+	if parent = m.tree.childs[r.Method]; parent == nil {
 		return nil, nil
 	}
 
+	rPath := r.URL.Path
+
 	//STATIC PATH
-	if child = parent.child[s]; child != nil {
+	if child = parent.childs[rPath]; child != nil {
 		return child, nil
 	}
 
 	var si, ei, bsi int
 	var ctx *Context
 
-	for i := 1; i < len(s); i++ {
+	for i := 1; i < len(rPath); i++ {
 		si = i
 		ei = i
 
-		for ; i < len(s); i++ {
-			if s[i] == '/' {
+		for ; i < len(rPath); i++ {
+			if rPath[i] == '/' {
 				break
 			}
 
 			ei++
 		}
 
-		edge := s[si:ei]
+		edge := rPath[si:ei]
 
-		if child = parent.child[edge]; child == nil {
-			if child = parent.child[":"]; child != nil {
+		if child = parent.childs[edge]; child == nil {
+			if child = parent.childs[":"]; child != nil {
 				if ctx == nil {
 					ctx = m.pool.Get().(*Context)
 				}
 				ctx.params.Set(child.param, edge)
 
-			} else if child = parent.child["*"]; child == nil {
+			} else if child = parent.childs["*"]; child == nil {
 				//BACKTRACK
-				if child = parent.parent.child[":"]; child != nil {
+				if child = parent.parent.childs[":"]; child != nil {
 					if ctx == nil {
 						ctx = m.pool.Get().(*Context)
 					}
-					ctx.params.Set(child.param, s[bsi:si-1])
+					ctx.params.Set(child.param, rPath[bsi:si-1])
 					si = bsi
 
-				} else if child = parent.parent.child["*"]; child != nil {
+				} else if child = parent.parent.childs["*"]; child != nil {
 					si = bsi
 				}
 			}
 		}
 
 		if child != nil {
-			if i >= len(s)-1 && child.handler != nil {
+			if i >= len(rPath)-1 && child.handler != nil {
 				return child, ctx
 			}
 
-			if len(child.child) == 0 {
+			if len(child.childs) == 0 {
 				if child.kind == nodeKindCatchAll && child.handler != nil {
 					return child, ctx
 				}

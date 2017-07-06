@@ -11,7 +11,7 @@ go get -u github.com/nissy/bon
 
 ### Easy
 
-```
+```go
 package main
 
 import (
@@ -33,7 +33,7 @@ func main() {
 
 ### Group
 
-```
+```go
 package main
 
 import (
@@ -56,7 +56,7 @@ func main() {
 
 ### FileServer
 
-```
+```go
 package main
 
 import (
@@ -76,7 +76,7 @@ func main() {
 
 ### Middleware
 
-```
+```go
 package main
 
 import (
@@ -111,16 +111,21 @@ func main() {
 
 https://github.com/nissy/go-http-routing-benchmark
 
-```
-BenchmarkBon_GithubAll                 10000        215428 ns/op       53443 B/op        501 allocs/op
-BenchmarkBeego_GithubAll                3000        442445 ns/op       74709 B/op        812 allocs/op
-BenchmarkChi_GithubAll                 10000        257375 ns/op       61716 B/op        406 allocs/op
-BenchmarkDenco_GithubAll               10000        100696 ns/op       20224 B/op        167 allocs/op
-BenchmarkGin_GithubAll                 50000         33066 ns/op           0 B/op          0 allocs/op
-BenchmarkHttpRouter_GithubAll          20000         68954 ns/op       13792 B/op        167 allocs/op
-BenchmarkLARS_GithubAll                50000         34632 ns/op           0 B/op          0 allocs/op
-BenchmarkPossum_GithubAll               5000        368582 ns/op       84454 B/op        609 allocs/op
-BenchmarkRivet_GithubAll               10000        114235 ns/op       16272 B/op        167 allocs/op
-BenchmarkTango_GithubAll                5000        433555 ns/op       63845 B/op       1618 allocs/op
-BenchmarkVulcan_GithubAll              10000        261820 ns/op       19894 B/op        609 allocs/op
+```go
+BenchmarkBon_Param        	 3000000	       461 ns/op	     304 B/op	       2 allocs/op
+BenchmarkBon_Param5       	 2000000	       554 ns/op	     304 B/op	       2 allocs/op
+BenchmarkBon_Param20      	 1000000	      1153 ns/op	     304 B/op	       2 allocs/op
+BenchmarkBon_ParamWrite   	 3000000	       515 ns/op	     304 B/op	       2 allocs/op
+BenchmarkBon_GithubStatic 	20000000	      60.5 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBon_GithubParam  	 3000000	       591 ns/op	     304 B/op	       2 allocs/op
+BenchmarkBon_GithubAll    	   10000	    107487 ns/op	   50770 B/op	     334 allocs/op
+BenchmarkBon_GPlusStatic  	30000000	      38.2 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBon_GPlusParam   	 3000000	       469 ns/op	     304 B/op	       2 allocs/op
+BenchmarkBon_GPlus2Params 	 3000000	       540 ns/op	     304 B/op	       2 allocs/op
+BenchmarkBon_GPlusAll     	  200000	      5778 ns/op	    3344 B/op	      22 allocs/op
+BenchmarkBon_ParseStatic  	30000000	      44.6 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBon_ParseParam   	 3000000	       469 ns/op	     304 B/op	       2 allocs/op
+BenchmarkBon_Parse2Params 	 3000000	       532 ns/op	     304 B/op	       2 allocs/op
+BenchmarkBon_ParseAll     	  200000	      8678 ns/op	    4864 B/op	      32 allocs/op
+BenchmarkBon_StaticAll    	  200000	     10759 ns/op	       0 B/op	       0 allocs/op
 ```
