@@ -41,6 +41,7 @@ type (
 	Middleware func(http.Handler) http.Handler
 
 	Context struct {
+		ctx    context.Context
 		params params
 	}
 
@@ -78,27 +79,21 @@ func (n *node) newChild(child *node, edge string) *node {
 		n.children = make(map[string]*node)
 	}
 
-	switch edge {
-	case ":":
-		child.kind = nodeKindParam
-	case "*":
-		child.kind = nodeKindCatchAll
-	default:
-		child.kind = nodeKindStatic
-	}
-
 	child.parent = n
 	n.children[edge] = child
 	return child
 }
 
 func newContext(cap int) *Context {
-	return &Context{
+	ctx := &Context{
 		params: make([]param, 0, cap),
 	}
+
+	ctx.ctx = context.WithValue(context.Background(), ContextKey, ctx)
+	return ctx
 }
 
-func resetContext(ctx *Context) *Context {
+func (ctx *Context) reset() *Context {
 	ctx.params = ctx.params[:0]
 	return ctx
 }
@@ -244,14 +239,17 @@ func (m *Mux) Handle(method, pattern string, handler http.Handler, middlewares .
 		}
 
 		edge := pattern[si:ei]
+		kind := nodeKindStatic
 		var param string
 
 		switch edge[0] {
 		case ':':
 			param = edge[1:]
 			edge = ":"
+			kind = nodeKindParam
 		case '*':
 			edge = "*"
+			kind = nodeKindCatchAll
 		}
 
 		child, exist := parent.children[edge]
@@ -259,6 +257,8 @@ func (m *Mux) Handle(method, pattern string, handler http.Handler, middlewares .
 		if !exist {
 			child = newNode()
 		}
+
+		child.kind = kind
 
 		if len(param) > 0 {
 			child.param = param
@@ -365,16 +365,14 @@ func (m *Mux) lookup(r *http.Request) (*node, *Context) {
 func (m *Mux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if n, ctx := m.lookup(r); n != nil {
 		if ctx != nil {
-			r = r.WithContext(context.WithValue(
-				r.Context(), ContextKey, ctx),
-			)
+			r = r.WithContext(ctx.ctx)
 		}
 
 		if len(n.middlewares) == 0 {
 			n.handler.ServeHTTP(w, r)
 
 			if ctx != nil {
-				m.pool.Put(resetContext(ctx))
+				m.pool.Put(ctx.reset())
 			}
 
 			return
@@ -389,7 +387,7 @@ func (m *Mux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.ServeHTTP(w, r)
 
 		if ctx != nil {
-			m.pool.Put(resetContext(ctx))
+			m.pool.Put(ctx.reset())
 		}
 
 		return

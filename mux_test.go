@@ -89,3 +89,33 @@ func TestMuxGroupParam(t *testing.T) {
 	defer p.Close()
 	p.Do(t)
 }
+
+func TestMuxBackTrack(t *testing.T) {
+	r := NewRouter()
+
+	r.Get("/users/aaa", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte([]byte("static-aaa")))
+	})
+
+	r.Get("/users/:name", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte([]byte("param-" + URLParam(r, "name"))))
+	})
+
+	r.Get("/users/ccc", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte([]byte("static-ccc")))
+	})
+
+	p := &Pattern{
+		Reqests: []*Reqest{
+			{"/users/aaa", 200, "static-aaa"},
+			{"/users/bbb", 200, "param-bbb"},
+			{"/users/ccc", 200, "static-ccc"},
+			{"/users/ccc/ddd", 404, BodyNotFound},
+		},
+
+		Server: httptest.NewServer(r),
+	}
+
+	defer p.Close()
+	p.Do(t)
+}
