@@ -12,7 +12,7 @@ const (
 	nodeKindCatchAll
 )
 
-var ContextKey = &struct {
+var contextKey = &struct {
 	name string
 }{
 	name: "BON",
@@ -89,7 +89,7 @@ func newContext(cap int) *Context {
 		params: make([]param, 0, cap),
 	}
 
-	ctx.ctx = context.WithValue(context.Background(), ContextKey, ctx)
+	ctx.ctx = context.WithValue(context.Background(), contextKey, ctx)
 	return ctx
 }
 
@@ -116,7 +116,7 @@ func (ps params) Get(key string) string {
 }
 
 func URLParam(r *http.Request, key string) string {
-	if ctx := r.Context().Value(ContextKey); ctx != nil {
+	if ctx := r.Context().Value(contextKey); ctx != nil {
 		if ctx, ok := ctx.(*Context); ok {
 			return ctx.params.Get(key)
 		}

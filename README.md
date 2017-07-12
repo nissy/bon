@@ -1,14 +1,8 @@
-# <img alt="bon" src="https://nissy.github.io/bon/bon.svg" width="200" />
+<img alt="BON" src="https://nissy.github.io/bon/bon.svg" width="230" />
+
+Bon is somewhat fast httprouter of Go designed by Patricia tree
  
  [![GoDoc Widget]][GoDoc]
- 
-Bon is httprouter of Go designed by Patricia tree
-
-## Install
-
-```
-go get -u github.com/nissy/bon
-```
 
 ## Examples
 
