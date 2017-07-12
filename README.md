@@ -130,3 +130,6 @@ BenchmarkRivet_GithubAll         	   10000	    116708 ns/op	   16272 B/op	     1
 BenchmarkTango_GithubAll         	    3000	    501873 ns/op	   63844 B/op	    1618 allocs/op
 BenchmarkVulcan_GithubAll        	    5000	    293323 ns/op	   19894 B/op	     609 allocs/op
 ```
+
+[GoDoc]: https://godoc.org/github.com/nissy/bon
+[GoDoc Widget]: https://godoc.org/github.com/nissy/bon?status.svg
