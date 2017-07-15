@@ -98,7 +98,7 @@ func (ctx *Context) reset() *Context {
 	return ctx
 }
 
-func (ps *params) Set(key, value string) {
+func (ps *params) Put(key, value string) {
 	*ps = append(*ps, param{
 		key:   key,
 		value: value,
@@ -320,7 +320,7 @@ func (m *Mux) lookup(r *http.Request) (*node, *Context) {
 					ctx = m.pool.Get().(*Context)
 				}
 
-				ctx.params.Set(child.param, edge)
+				ctx.params.Put(child.param, edge)
 
 			} else if child = parent.children["*"]; child == nil {
 				//BACKTRACK
@@ -329,7 +329,7 @@ func (m *Mux) lookup(r *http.Request) (*node, *Context) {
 						ctx = m.pool.Get().(*Context)
 					}
 
-					ctx.params.Set(child.param, rPath[bsi:si-1])
+					ctx.params.Put(child.param, rPath[bsi:si-1])
 					si = bsi
 
 				} else if child = parent.parent.children["*"]; child != nil {

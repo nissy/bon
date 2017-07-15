@@ -1,6 +1,6 @@
 <img alt="BON" src="https://nissy.github.io/bon/bon.svg" width="230" />
 
-Bon is somewhat fast httprouter of Go designed by Patricia tree
+Bon is "somewhat" fast http router of Go designed by Patricia tree
  
  [![GoDoc Widget]][GoDoc]
 
