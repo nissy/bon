@@ -110,9 +110,6 @@ https://github.com/nissy/go-http-routing-benchmark
 
 ```
 BenchmarkBon_GithubAll           	   10000	    189108 ns/op	   42755 B/op	     167 allocs/op
-```
-
-```
 BenchmarkBeego_GithubAll         	    3000	    466042 ns/op	   74709 B/op	     812 allocs/op
 BenchmarkChi_GithubAll           	    5000	    287661 ns/op	   61716 B/op	     406 allocs/op
 BenchmarkDenco_GithubAll         	   10000	    105619 ns/op	   20224 B/op	     167 allocs/op
