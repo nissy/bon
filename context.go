@@ -34,12 +34,6 @@ func newContext(cap int) *Context {
 	return ctx
 }
 
-func (ctx *Context) WithContext(r *http.Request) *http.Request {
-	return r.WithContext(
-		context.WithValue(r.Context(), contextKey, ctx),
-	)
-}
-
 func (ctx *Context) reset() *Context {
 	ctx.params = ctx.params[:0]
 	return ctx

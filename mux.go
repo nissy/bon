@@ -305,7 +305,7 @@ func (m *Mux) lookup(r *http.Request) (*node, *Context) {
 func (m *Mux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if n, ctx := m.lookup(r); n != nil {
 		if ctx != nil {
-			r = ctx.WithContext(r)
+			r = r.WithContext(ctx.ctx)
 		}
 
 		if len(n.middlewares) == 0 {
