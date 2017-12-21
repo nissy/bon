@@ -109,20 +109,18 @@ func main() {
 https://github.com/nissy/go-http-routing-benchmark
 
 ```
-BenchmarkBon_GithubAll           	   10000	    189108 ns/op	   42755 B/op	     167 allocs/op
-```
-
-```
-BenchmarkBeego_GithubAll         	    3000	    466042 ns/op	   74709 B/op	     812 allocs/op
-BenchmarkChi_GithubAll           	    5000	    287661 ns/op	   61716 B/op	     406 allocs/op
-BenchmarkDenco_GithubAll         	   10000	    105619 ns/op	   20224 B/op	     167 allocs/op
-BenchmarkGin_GithubAll           	   50000	     37034 ns/op	       0 B/op	       0 allocs/op
-BenchmarkHttpRouter_GithubAll    	   20000	     74031 ns/op	   13792 B/op	     167 allocs/op
-BenchmarkLARS_GithubAll          	   50000	     35790 ns/op	       0 B/op	       0 allocs/op
-BenchmarkPossum_GithubAll        	    5000	    380897 ns/op	   84454 B/op	     609 allocs/op
-BenchmarkRivet_GithubAll         	   10000	    116708 ns/op	   16272 B/op	     167 allocs/op
-BenchmarkTango_GithubAll         	    3000	    501873 ns/op	   63844 B/op	    1618 allocs/op
-BenchmarkVulcan_GithubAll        	    5000	    293323 ns/op	   19894 B/op	     609 allocs/op
+BenchmarkBon_GithubAll           	   10000	    105265 ns/op	   42753 B/op	     167 allocs/op
+BenchmarkBeego_GithubAll         	    3000	    464848 ns/op	   74707 B/op	     812 allocs/op
+BenchmarkChi_GithubAll           	   10000	    152969 ns/op	   61714 B/op	     406 allocs/op
+BenchmarkDenco_GithubAll         	   20000	     62366 ns/op	   20224 B/op	     167 allocs/op
+BenchmarkGorillaMux_GithubAll    	     300	   4686063 ns/op	  215088 B/op	    2272 allocs/op
+BenchmarkGin_GithubAll           	  100000	     22283 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHttpRouter_GithubAll    	   30000	     41143 ns/op	   13792 B/op	     167 allocs/op
+BenchmarkLARS_GithubAll          	   50000	     22996 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPossum_GithubAll        	   10000	    212328 ns/op	   84451 B/op	     609 allocs/op
+BenchmarkRivet_GithubAll         	   20000	     72324 ns/op	   16272 B/op	     167 allocs/op
+BenchmarkTango_GithubAll         	    5000	    285607 ns/op	   63834 B/op	    1618 allocs/op
+BenchmarkVulcan_GithubAll        	   10000	    177044 ns/op	   19894 B/op	     609 allocs/op
 ```
 
 [GoDoc]: https://godoc.org/github.com/nissy/bon
