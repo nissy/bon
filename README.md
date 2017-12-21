@@ -104,23 +104,27 @@ func main() {
 }
 ```
 
-## Benchmarks
+## [Benchmarks](https://github.com/nissy/go-http-routing-benchmark)
 
-https://github.com/nissy/go-http-routing-benchmark
+### [GitHub](http://developer.github.com/v3/)
+
+The GitHub API is rather large, consisting of 203 routes. The tasks are basically the same as in the benchmarks before.
 
 ```
-BenchmarkBon_GithubAll           	   10000	    105265 ns/op	   42753 B/op	     167 allocs/op
-BenchmarkBeego_GithubAll         	    3000	    464848 ns/op	   74707 B/op	     812 allocs/op
-BenchmarkChi_GithubAll           	   10000	    152969 ns/op	   61714 B/op	     406 allocs/op
-BenchmarkDenco_GithubAll         	   20000	     62366 ns/op	   20224 B/op	     167 allocs/op
-BenchmarkGorillaMux_GithubAll    	     300	   4686063 ns/op	  215088 B/op	    2272 allocs/op
-BenchmarkGin_GithubAll           	  100000	     22283 ns/op	       0 B/op	       0 allocs/op
-BenchmarkHttpRouter_GithubAll    	   30000	     41143 ns/op	   13792 B/op	     167 allocs/op
-BenchmarkLARS_GithubAll          	   50000	     22996 ns/op	       0 B/op	       0 allocs/op
-BenchmarkPossum_GithubAll        	   10000	    212328 ns/op	   84451 B/op	     609 allocs/op
-BenchmarkRivet_GithubAll         	   20000	     72324 ns/op	   16272 B/op	     167 allocs/op
-BenchmarkTango_GithubAll         	    5000	    285607 ns/op	   63834 B/op	    1618 allocs/op
-BenchmarkVulcan_GithubAll        	   10000	    177044 ns/op	   19894 B/op	     609 allocs/op
+Bon            10000     105265 ns/op     42753 B/op     167 allocs/op
+```
+```
+Beego           3000     464848 ns/op     74707 B/op     812 allocs/op
+Chi            10000     152969 ns/op     61714 B/op     406 allocs/op
+Denco          20000      62366 ns/op     20224 B/op     167 allocs/op
+GorillaMux       300    4686063 ns/op    215088 B/op    2272 allocs/op
+Gin           100000      22283 ns/op         0 B/op       0 allocs/op
+HttpRouter     30000      41143 ns/op     13792 B/op     167 allocs/op
+LARS           50000      22996 ns/op         0 B/op       0 allocs/op
+Possum         10000     212328 ns/op     84451 B/op     609 allocs/op
+Rivet          20000      72324 ns/op     16272 B/op     167 allocs/op
+Tango           5000     285607 ns/op     63834 B/op    1618 allocs/op
+Vulcan         10000     177044 ns/op     19894 B/op     609 allocs/op
 ```
 
 [GoDoc]: https://godoc.org/github.com/nissy/bon
