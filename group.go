@@ -3,19 +3,18 @@ package bon
 import "net/http"
 
 type Group struct {
-	mux         *Mux
-	prefix      string
-	middlewares []Middleware
+	mux    *Mux
+	prefix string
 }
 
 func (g *Group) Group(pattern string, middlewares ...Middleware) *Group {
 	g.prefix += pattern
-	g.middlewares = append(g.middlewares, middlewares...)
+	g.mux.middlewares = append(g.mux.middlewares, middlewares...)
 	return g
 }
 
 func (g *Group) Use(middlewares ...Middleware) {
-	g.middlewares = append(g.middlewares, middlewares...)
+	g.mux.middlewares = append(g.mux.middlewares, middlewares...)
 }
 
 func (g *Group) Get(pattern string, handlerFunc http.HandlerFunc, middlewares ...Middleware) {
