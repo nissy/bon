@@ -41,7 +41,7 @@ func newMux() *Mux {
 
 	m.pool = sync.Pool{
 		New: func() interface{} {
-			return newContext(m.maxParam)
+			return NewContext(m.maxParam)
 		},
 	}
 
@@ -261,7 +261,7 @@ func (m *Mux) lookup(r *http.Request) (*node, *Context) {
 					ctx = m.pool.Get().(*Context)
 				}
 
-				ctx.params.Put(child.param, edge)
+				ctx.Params.Put(child.param, edge)
 
 			} else if child = parent.children["*"]; child == nil {
 				//BACKTRACK
@@ -270,7 +270,7 @@ func (m *Mux) lookup(r *http.Request) (*node, *Context) {
 						ctx = m.pool.Get().(*Context)
 					}
 
-					ctx.params.Put(child.param, rPath[bsi:si-1])
+					ctx.Params.Put(child.param, rPath[bsi:si-1])
 					si = bsi
 
 				} else if child = parent.parent.children["*"]; child != nil {
