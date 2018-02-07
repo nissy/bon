@@ -8,7 +8,7 @@ type Group struct {
 }
 
 func (g *Group) Group(pattern string, middlewares ...Middleware) *Group {
-	g.prefix += pattern
+	g.prefix += compensatePattern(pattern)
 	g.mux.middlewares = append(g.mux.middlewares, middlewares...)
 	return g
 }
@@ -54,5 +54,5 @@ func (g *Group) Trace(pattern string, handlerFunc http.HandlerFunc, middlewares 
 }
 
 func (g *Group) Handle(method, pattern string, handler http.Handler, middlewares ...Middleware) {
-	g.mux.Handle(method, g.prefix+pattern, handler, middlewares...)
+	g.mux.Handle(method, g.prefix+compensatePattern(pattern), handler, middlewares...)
 }

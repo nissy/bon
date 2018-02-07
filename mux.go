@@ -75,12 +75,22 @@ func isStaticPattern(pattern string) bool {
 	return true
 }
 
+func compensatePattern(pattern string) string {
+	if len(pattern) > 0 {
+		if pattern[0] != '/' {
+			return "/" + pattern
+		}
+	}
+
+	return pattern
+}
+
 func (m *Mux) Group(pattern string, middlewares ...Middleware) *Group {
 	m.middlewares = append(m.middlewares, middlewares...)
 
 	return &Group{
 		mux:    m,
-		prefix: pattern,
+		prefix: compensatePattern(pattern),
 	}
 }
 
@@ -137,15 +147,13 @@ func (m *Mux) FileServer(pattern, dir string) {
 }
 
 func (m *Mux) Handle(method, pattern string, handler http.Handler, middlewares ...Middleware) {
-	if pattern[0] != '/' {
-		panic("There is no leading slash")
-	}
-
 	parent := m.tree.children[method]
 
 	if parent == nil {
 		parent = m.tree.newChild(newNode(), method)
 	}
+
+	pattern = compensatePattern(pattern)
 
 	if isStaticPattern(pattern) {
 		if _, ok := parent.children[pattern]; !ok {
