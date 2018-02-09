@@ -125,6 +125,16 @@ func main() {
 	r.Use(
 		middleware.BasicAuth("username", "password"),
 		middleware.Timeout(2500*time.Millisecond),
+        middleware.CORS(middleware.AccessControlConfig{
+            AllowOrigin:      "*",
+            AllowCredentials: true,
+            AllowMethods: []string{
+                bon.POST, bon.POST, bon.PUT, bon.DELETE,
+            },
+            AllowHeaders: []string{
+                "x-header",
+            },
+        }),
 	)
 
 	r.Get("/admin", func(w http.ResponseWriter, r *http.Request) {
