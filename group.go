@@ -18,39 +18,39 @@ func (g *Group) Use(middlewares ...Middleware) {
 }
 
 func (g *Group) Get(pattern string, handlerFunc http.HandlerFunc, middlewares ...Middleware) {
-	g.Handle("GET", pattern, handlerFunc, middlewares...)
+	g.Handle(GET, pattern, handlerFunc, middlewares...)
 }
 
 func (g *Group) Post(pattern string, handlerFunc http.HandlerFunc, middlewares ...Middleware) {
-	g.Handle("POST", pattern, handlerFunc, middlewares...)
+	g.Handle(POST, pattern, handlerFunc, middlewares...)
 }
 
 func (g *Group) Put(pattern string, handlerFunc http.HandlerFunc, middlewares ...Middleware) {
-	g.Handle("PUT", pattern, handlerFunc, middlewares...)
+	g.Handle(PUT, pattern, handlerFunc, middlewares...)
 }
 
 func (g *Group) Delete(pattern string, handlerFunc http.HandlerFunc, middlewares ...Middleware) {
-	g.Handle("DELETE", pattern, handlerFunc, middlewares...)
+	g.Handle(DELETE, pattern, handlerFunc, middlewares...)
 }
 
 func (g *Group) Head(pattern string, handlerFunc http.HandlerFunc, middlewares ...Middleware) {
-	g.Handle("HEAD", pattern, handlerFunc, middlewares...)
+	g.Handle(HEAD, pattern, handlerFunc, middlewares...)
 }
 
 func (g *Group) Options(pattern string, handlerFunc http.HandlerFunc, middlewares ...Middleware) {
-	g.Handle("OPTIONS", pattern, handlerFunc, middlewares...)
+	g.Handle(OPTIONS, pattern, handlerFunc, middlewares...)
 }
 
 func (g *Group) Patch(pattern string, handlerFunc http.HandlerFunc, middlewares ...Middleware) {
-	g.Handle("PATCH", pattern, handlerFunc, middlewares...)
+	g.Handle(PATCH, pattern, handlerFunc, middlewares...)
 }
 
 func (g *Group) Connect(pattern string, handlerFunc http.HandlerFunc, middlewares ...Middleware) {
-	g.Handle("CONNECT", pattern, handlerFunc, middlewares...)
+	g.Handle(CONNECT, pattern, handlerFunc, middlewares...)
 }
 
 func (g *Group) Trace(pattern string, handlerFunc http.HandlerFunc, middlewares ...Middleware) {
-	g.Handle("TRACE", pattern, handlerFunc, middlewares...)
+	g.Handle(TRACE, pattern, handlerFunc, middlewares...)
 }
 
 func (g *Group) Handle(method, pattern string, handler http.Handler, middlewares ...Middleware) {

@@ -99,39 +99,39 @@ func (m *Mux) Use(middlewares ...Middleware) {
 }
 
 func (m *Mux) Get(pattern string, handlerFunc http.HandlerFunc, middlewares ...Middleware) {
-	m.Handle("GET", pattern, handlerFunc, middlewares...)
+	m.Handle(GET, pattern, handlerFunc, middlewares...)
 }
 
 func (m *Mux) Post(pattern string, handlerFunc http.HandlerFunc, middlewares ...Middleware) {
-	m.Handle("POST", pattern, handlerFunc, middlewares...)
+	m.Handle(POST, pattern, handlerFunc, middlewares...)
 }
 
 func (m *Mux) Put(pattern string, handlerFunc http.HandlerFunc, middlewares ...Middleware) {
-	m.Handle("PUT", pattern, handlerFunc, middlewares...)
+	m.Handle(PUT, pattern, handlerFunc, middlewares...)
 }
 
 func (m *Mux) Delete(pattern string, handlerFunc http.HandlerFunc, middlewares ...Middleware) {
-	m.Handle("DELETE", pattern, handlerFunc, middlewares...)
+	m.Handle(DELETE, pattern, handlerFunc, middlewares...)
 }
 
 func (m *Mux) Head(pattern string, handlerFunc http.HandlerFunc, middlewares ...Middleware) {
-	m.Handle("HEAD", pattern, handlerFunc, middlewares...)
+	m.Handle(HEAD, pattern, handlerFunc, middlewares...)
 }
 
 func (m *Mux) Options(pattern string, handlerFunc http.HandlerFunc, middlewares ...Middleware) {
-	m.Handle("OPTIONS", pattern, handlerFunc, middlewares...)
+	m.Handle(OPTIONS, pattern, handlerFunc, middlewares...)
 }
 
 func (m *Mux) Patch(pattern string, handlerFunc http.HandlerFunc, middlewares ...Middleware) {
-	m.Handle("PATCH", pattern, handlerFunc, middlewares...)
+	m.Handle(PATCH, pattern, handlerFunc, middlewares...)
 }
 
 func (m *Mux) Connect(pattern string, handlerFunc http.HandlerFunc, middlewares ...Middleware) {
-	m.Handle("CONNECT", pattern, handlerFunc, middlewares...)
+	m.Handle(CONNECT, pattern, handlerFunc, middlewares...)
 }
 
 func (m *Mux) Trace(pattern string, handlerFunc http.HandlerFunc, middlewares ...Middleware) {
-	m.Handle("TRACE", pattern, handlerFunc, middlewares...)
+	m.Handle(TRACE, pattern, handlerFunc, middlewares...)
 }
 
 func (m *Mux) FileServer(pattern, dir string) {
@@ -143,7 +143,7 @@ func (m *Mux) FileServer(pattern, dir string) {
 		pattern += "/"
 	}
 
-	m.Handle("GET", pattern+"*", http.StripPrefix(pattern, http.FileServer(http.Dir(dir))))
+	m.Handle(GET, pattern+"*", http.StripPrefix(pattern, http.FileServer(http.Dir(dir))))
 }
 
 func (m *Mux) Handle(method, pattern string, handler http.Handler, middlewares ...Middleware) {
