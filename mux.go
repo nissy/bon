@@ -143,7 +143,7 @@ func (m *Mux) FileServer(pattern, dir string) {
 		pattern += "/"
 	}
 
-	m.Handle(GET, pattern+"*", http.StripPrefix(pattern, http.FileServer(http.Dir(dir))))
+	m.Handle(http.MethodGet, pattern+"*", http.StripPrefix(pattern, http.FileServer(http.Dir(dir))))
 }
 
 func (m *Mux) Handle(method, pattern string, handler http.Handler, middlewares ...Middleware) {
