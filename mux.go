@@ -99,39 +99,39 @@ func (m *Mux) Use(middlewares ...Middleware) {
 }
 
 func (m *Mux) Get(pattern string, handlerFunc http.HandlerFunc, middlewares ...Middleware) {
-	m.Handle(GET, pattern, handlerFunc, middlewares...)
+	m.Handle(http.MethodGet, pattern, handlerFunc, middlewares...)
 }
 
 func (m *Mux) Post(pattern string, handlerFunc http.HandlerFunc, middlewares ...Middleware) {
-	m.Handle(POST, pattern, handlerFunc, middlewares...)
+	m.Handle(http.MethodPost, pattern, handlerFunc, middlewares...)
 }
 
 func (m *Mux) Put(pattern string, handlerFunc http.HandlerFunc, middlewares ...Middleware) {
-	m.Handle(PUT, pattern, handlerFunc, middlewares...)
+	m.Handle(http.MethodPut, pattern, handlerFunc, middlewares...)
 }
 
 func (m *Mux) Delete(pattern string, handlerFunc http.HandlerFunc, middlewares ...Middleware) {
-	m.Handle(DELETE, pattern, handlerFunc, middlewares...)
+	m.Handle(http.MethodDelete, pattern, handlerFunc, middlewares...)
 }
 
 func (m *Mux) Head(pattern string, handlerFunc http.HandlerFunc, middlewares ...Middleware) {
-	m.Handle(HEAD, pattern, handlerFunc, middlewares...)
+	m.Handle(http.MethodHead, pattern, handlerFunc, middlewares...)
 }
 
 func (m *Mux) Options(pattern string, handlerFunc http.HandlerFunc, middlewares ...Middleware) {
-	m.Handle(OPTIONS, pattern, handlerFunc, middlewares...)
+	m.Handle(http.MethodOptions, pattern, handlerFunc, middlewares...)
 }
 
 func (m *Mux) Patch(pattern string, handlerFunc http.HandlerFunc, middlewares ...Middleware) {
-	m.Handle(PATCH, pattern, handlerFunc, middlewares...)
+	m.Handle(http.MethodPatch, pattern, handlerFunc, middlewares...)
 }
 
 func (m *Mux) Connect(pattern string, handlerFunc http.HandlerFunc, middlewares ...Middleware) {
-	m.Handle(CONNECT, pattern, handlerFunc, middlewares...)
+	m.Handle(http.MethodConnect, pattern, handlerFunc, middlewares...)
 }
 
 func (m *Mux) Trace(pattern string, handlerFunc http.HandlerFunc, middlewares ...Middleware) {
-	m.Handle(TRACE, pattern, handlerFunc, middlewares...)
+	m.Handle(http.MethodTrace, pattern, handlerFunc, middlewares...)
 }
 
 func (m *Mux) FileServer(pattern, dir string) {
