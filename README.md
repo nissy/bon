@@ -129,7 +129,7 @@ func main() {
 			AllowOrigin:      "*",
 			AllowCredentials: true,
 			AllowMethods: []string{
-				bon.POST, bon.POST, bon.PUT, bon.DELETE,
+				bon.GET, bon.POST, bon.PUT, bon.DELETE,
 			},
 			AllowHeaders: []string{
 				"x-header",
