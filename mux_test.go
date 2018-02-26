@@ -20,11 +20,6 @@ type Reqest struct {
 	WantBody       string
 }
 
-type Header struct {
-	Key   string
-	Value string
-}
-
 func MiddlewareTest(v string) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		fn := func(w http.ResponseWriter, r *http.Request) {
