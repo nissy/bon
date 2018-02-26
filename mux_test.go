@@ -18,7 +18,6 @@ type Reqest struct {
 	Path           string
 	WantStatusCode int
 	WantBody       string
-	WantHeader     *Header
 }
 
 type Header struct {
@@ -26,10 +25,10 @@ type Header struct {
 	Value string
 }
 
-func SetTestHeader(key, value string) func(next http.Handler) http.Handler {
+func MiddlewareTest(v string) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		fn := func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set(key, value)
+			w.Write([]byte(v))
 			next.ServeHTTP(w, r)
 		}
 
@@ -47,12 +46,6 @@ func (p *Pattern) Do(t *testing.T) {
 
 		if res.StatusCode != v.WantStatusCode {
 			t.Fatalf("Path=%q, StatusCode=%d, Want=%d", v.Path, res.StatusCode, v.WantStatusCode)
-		}
-
-		if v.WantHeader != nil {
-			if res.Header.Get(v.WantHeader.Key) != v.WantHeader.Value {
-				t.Fatalf("Key=%q, Value=%q, Want=%q", v.WantHeader.Key, res.Header.Get(v.WantHeader.Key), v.WantHeader.Value)
-			}
 		}
 
 		var buf bytes.Buffer
@@ -80,9 +73,9 @@ func TestMuxParam(t *testing.T) {
 
 	p := &Pattern{
 		Reqests: []*Reqest{
-			{"/users/aaa", 200, "aaa", nil},
-			{"/users/bbb", 200, "bbb", nil},
-			{"/users", 404, BodyNotFound, nil},
+			{"/users/aaa", 200, "aaa"},
+			{"/users/bbb", 200, "bbb"},
+			{"/users", 404, BodyNotFound},
 		},
 
 		Server: httptest.NewServer(r),
@@ -102,8 +95,8 @@ func TestMuxGroupParam(t *testing.T) {
 
 	p := &Pattern{
 		Reqests: []*Reqest{
-			{"/users/aaa/24", 200, "name=aaa, age=24", nil},
-			{"/users/bbb/23", 200, "name=bbb, age=23", nil},
+			{"/users/aaa/24", 200, "name=aaa, age=24"},
+			{"/users/bbb/23", 200, "name=bbb, age=23"},
 		},
 
 		Server: httptest.NewServer(r),
@@ -130,10 +123,10 @@ func TestMuxBackTrack(t *testing.T) {
 
 	p := &Pattern{
 		Reqests: []*Reqest{
-			{"/users/aaa", 200, "static-aaa", nil},
-			{"/users/bbb", 200, "param-bbb", nil},
-			{"/users/ccc", 200, "static-ccc", nil},
-			{"/users/ccc/ddd", 404, BodyNotFound, nil},
+			{"/users/aaa", 200, "static-aaa"},
+			{"/users/bbb", 200, "param-bbb"},
+			{"/users/ccc", 200, "static-ccc"},
+			{"/users/ccc/ddd", 404, BodyNotFound},
 		},
 
 		Server: httptest.NewServer(r),
@@ -146,28 +139,18 @@ func TestMuxBackTrack(t *testing.T) {
 func TestMuxMiddleware(t *testing.T) {
 	r := NewRouter()
 
-	a := &Header{
-		Key:   "X-TEST-A",
-		Value: "TEST-A",
-	}
-
-	b := &Header{
-		Key:   "X-TEST-B",
-		Value: "TEST-B",
-	}
-
-	r.Use(SetTestHeader(a.Key, a.Value))
+	r.Use(MiddlewareTest("m"))
 
 	r.Get("/users/:name", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte([]byte(URLParam(r, "name"))))
 	},
-		SetTestHeader(b.Key, b.Value),
+		MiddlewareTest("m"),
 	)
 
 	p := &Pattern{
 		Reqests: []*Reqest{
-			{"/users/a", 200, "a", a},
-			{"/users/b", 200, "b", b},
+			{"/users/a", 200, "mma"},
+			{"/users/b", 200, "mmb"},
 		},
 
 		Server: httptest.NewServer(r),
@@ -180,43 +163,36 @@ func TestMuxMiddleware(t *testing.T) {
 func TestMuxGroupMiddleware(t *testing.T) {
 	r := NewRouter()
 
-	a := &Header{
-		Key:   "X-TEST-A",
-		Value: "TEST-A",
-	}
+	a := r.Group("/a")
+	a.Use(MiddlewareTest("mA"))
+	a.Get("/a", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("a"))
+	})
 
-	b := &Header{
-		Key:   "X-TEST-B",
-		Value: "TEST-B",
-	}
+	aa := a.Group("/a")
+	aa.Use(MiddlewareTest("mAA"))
+	aa.Get("/a", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("aa"))
+	})
 
-	c := &Header{
-		Key:   "X-TEST-C",
-		Value: "TEST-C",
-	}
+	b := r.Group("/b")
+	b.Use(MiddlewareTest("mB"))
+	b.Get("/b", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("b"))
+	})
 
-	d := &Header{
-		Key:   "X-TEST-D",
-		Value: "TEST-D",
-	}
-
-	r.Use(SetTestHeader(a.Key, a.Value))
-	users := r.Group("/users", SetTestHeader(b.Key, b.Value))
-	users.Use(SetTestHeader(c.Key, c.Value))
-	users.Get("/:name", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte([]byte(URLParam(r, "name"))))
-	},
-		SetTestHeader(d.Key, d.Value),
-	)
+	c := r.Group("/c")
+	c.Get("/c", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("c"))
+	})
 
 	p := &Pattern{
 		Reqests: []*Reqest{
-			{"/users/a", 200, "a", a},
-			{"/users/b", 200, "b", b},
-			{"/users/c", 200, "c", c},
-			{"/users/d", 200, "d", d},
+			{"/a/a", 200, "mAa"},
+			{"/a/a/a", 200, "mAmAAaa"},
+			{"/b/b", 200, "mBb"},
+			{"/c/c", 200, "c"},
 		},
-
 		Server: httptest.NewServer(r),
 	}
 
