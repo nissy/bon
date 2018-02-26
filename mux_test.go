@@ -134,18 +134,18 @@ func TestMuxBackTrack(t *testing.T) {
 func TestMuxMiddleware(t *testing.T) {
 	r := NewRouter()
 
-	r.Use(MiddlewareTest("m"))
+	r.Use(MiddlewareTest("M"))
 
 	r.Get("/users/:name", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte([]byte(URLParam(r, "name"))))
 	},
-		MiddlewareTest("m"),
+		MiddlewareTest("M"),
 	)
 
 	p := &Pattern{
 		Reqests: []*Reqest{
-			{"/users/a", 200, "mma"},
-			{"/users/b", 200, "mmb"},
+			{"/users/a", 200, "MMa"},
+			{"/users/b", 200, "MMb"},
 		},
 
 		Server: httptest.NewServer(r),
@@ -159,19 +159,21 @@ func TestMuxGroupMiddleware(t *testing.T) {
 	r := NewRouter()
 
 	a := r.Group("/a")
-	a.Use(MiddlewareTest("mA"))
+	a.Use(MiddlewareTest("MA"))
 	a.Get("/a", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("a"))
 	})
 
 	aa := a.Group("/a")
-	aa.Use(MiddlewareTest("mAA"))
+	aa.Use(MiddlewareTest("MAA"))
 	aa.Get("/a", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("aa"))
 	})
 
+	r.Use(MiddlewareTest("M"))
+
 	b := r.Group("/b")
-	b.Use(MiddlewareTest("mB"))
+	b.Use(MiddlewareTest("MB"))
 	b.Get("/b", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("b"))
 	})
@@ -183,10 +185,10 @@ func TestMuxGroupMiddleware(t *testing.T) {
 
 	p := &Pattern{
 		Reqests: []*Reqest{
-			{"/a/a", 200, "mAa"},
-			{"/a/a/a", 200, "mAmAAaa"},
-			{"/b/b", 200, "mBb"},
-			{"/c/c", 200, "c"},
+			{"/a/a", 200, "MAa"},
+			{"/a/a/a", 200, "MAMAAaa"},
+			{"/b/b", 200, "MMBb"},
+			{"/c/c", 200, "Mc"},
 		},
 		Server: httptest.NewServer(r),
 	}

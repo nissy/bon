@@ -88,7 +88,7 @@ func compensatePattern(pattern string) string {
 func (m *Mux) Group(pattern string, middlewares ...Middleware) *Group {
 	return &Group{
 		mux:         m,
-		middlewares: append(m.middlewares, middlewares...),
+		middlewares: middlewares,
 		prefix:      compensatePattern(pattern),
 	}
 }
