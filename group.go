@@ -9,9 +9,11 @@ type Group struct {
 }
 
 func (g *Group) Group(pattern string, middlewares ...Middleware) *Group {
-	g.prefix += compensatePattern(pattern)
-	g.middlewares = append(g.middlewares, middlewares...)
-	return g
+	return &Group{
+		mux:         g.mux,
+		middlewares: append(g.middlewares, middlewares...),
+		prefix:      g.prefix + compensatePattern(pattern),
+	}
 }
 
 func (g *Group) Use(middlewares ...Middleware) {
