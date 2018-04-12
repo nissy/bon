@@ -80,6 +80,64 @@ func TestMuxParam(t *testing.T) {
 	p.Do(t)
 }
 
+func TestMuxParam2(t *testing.T) {
+	r := NewRouter()
+
+	r.Get("/users/:name", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte([]byte(URLParam(r, "name"))))
+	})
+	r.Get("/users/:name/ccc", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte([]byte(URLParam(r, "name") + "ccc")))
+	})
+
+	p := &Pattern{
+		Reqests: []*Reqest{
+			//{"/users/aaa", 200, "aaa"},
+			//{"/users/bbb/ccc", 200, "bbbccc"},
+			//{"/users", 404, BodyNotFound},
+			{"/users/ccc/ddd", 404, BodyNotFound},
+		},
+
+		Server: httptest.NewServer(r),
+	}
+
+	defer p.Close()
+	p.Do(t)
+}
+
+func TestMuxParam3(t *testing.T) {
+	r := NewRouter()
+
+	r.Get("/users/:name", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte([]byte(URLParam(r, "name"))))
+	})
+	r.Get("/users/:name/ccc", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte([]byte(URLParam(r, "name") + "ccc")))
+	})
+	r.Get("/*", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("*"))
+	})
+	r.Get("/a/*", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("*2"))
+	})
+
+	p := &Pattern{
+		Reqests: []*Reqest{
+			{"/users/aaa", 200, "aaa"},
+			{"/users/bbb/ccc", 200, "bbbccc"},
+			{"/users", 404, BodyNotFound},
+			{"/users/ccc/ddd", 404, BodyNotFound},
+			{"/a/a/a/a/a/a/a/a/a", 200, "*2"},
+			{"/b/a/a/a/a/a/a/a/a", 200, "*"},
+		},
+
+		Server: httptest.NewServer(r),
+	}
+
+	defer p.Close()
+	p.Do(t)
+}
+
 func TestMuxGroupParam(t *testing.T) {
 	r := NewRouter()
 

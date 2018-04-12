@@ -245,7 +245,7 @@ func (m *Mux) lookup(r *http.Request) (*node, *Context) {
 		return child, nil
 	}
 
-	var si, ei, bsi int
+	var si, ei int
 	var ctx *Context
 
 	for i := 1; i < len(rPath); i++ {
@@ -269,20 +269,8 @@ func (m *Mux) lookup(r *http.Request) (*node, *Context) {
 				}
 
 				ctx.Params.Put(child.param, edge)
-
-			} else if child = parent.children["*"]; child == nil {
-				//BACKTRACK
-				if child = parent.parent.children[":"]; child != nil {
-					if ctx == nil {
-						ctx = m.pool.Get().(*Context)
-					}
-
-					ctx.Params.Put(child.param, rPath[bsi:si-1])
-					si = bsi
-
-				} else if child = parent.parent.children["*"]; child != nil {
-					si = bsi
-				}
+			} else {
+				child = parent.children["*"]
 			}
 		}
 
@@ -299,7 +287,6 @@ func (m *Mux) lookup(r *http.Request) (*node, *Context) {
 				break
 			}
 
-			bsi = si
 			parent = child
 			continue
 		}
