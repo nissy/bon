@@ -14,10 +14,8 @@ var contextKey = &struct {
 type (
 	Context struct {
 		ctx    context.Context
-		Params params
+		Params []param
 	}
-
-	params []param
 
 	param struct {
 		key   string
@@ -25,9 +23,9 @@ type (
 	}
 )
 
-func NewContext(cap int) *Context {
+func (m *Mux) NewContext() *Context {
 	ctx := &Context{
-		Params: make([]param, 0, cap),
+		Params: make([]param, 0, m.maxParam),
 	}
 
 	ctx.ctx = context.WithValue(context.Background(), contextKey, ctx)
@@ -39,27 +37,21 @@ func (ctx *Context) reset() *Context {
 	return ctx
 }
 
-func (ps *params) Put(key, value string) {
-	*ps = append(*ps, param{
+func (ctx *Context) PutParam(key, value string) {
+	ctx.Params = append(ctx.Params, param{
 		key:   key,
 		value: value,
 	})
 }
 
-func (ps params) Get(key string) string {
-	for _, v := range ps {
-		if v.key == key {
-			return v.value
-		}
-	}
-
-	return ""
-}
-
 func URLParam(r *http.Request, key string) string {
 	if ctx := r.Context().Value(contextKey); ctx != nil {
 		if ctx, ok := ctx.(*Context); ok {
-			return ctx.Params.Get(key)
+			for _, v := range ctx.Params {
+				if v.key == key {
+					return v.value
+				}
+			}
 		}
 	}
 
