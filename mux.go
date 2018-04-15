@@ -93,6 +93,13 @@ func (m *Mux) Group(pattern string, middlewares ...Middleware) *Group {
 	}
 }
 
+func (m *Mux) Route(middlewares ...Middleware) *Route {
+	return &Route{
+		mux:         m,
+		middlewares: middlewares,
+	}
+}
+
 func (m *Mux) Use(middlewares ...Middleware) {
 	m.middlewares = append(m.middlewares, middlewares...)
 }
