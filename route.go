@@ -63,5 +63,5 @@ func (r *Route) Trace(pattern string, handlerFunc http.HandlerFunc, middlewares 
 }
 
 func (r *Route) Handle(method, pattern string, handler http.Handler, middlewares ...Middleware) {
-	r.mux.Handle(method, compensatePattern(pattern), handler, append(r.middlewares, middlewares...)...)
+	r.mux.Handle(method, pattern, handler, append(r.middlewares, middlewares...)...)
 }

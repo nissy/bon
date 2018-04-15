@@ -88,7 +88,7 @@ func compensatePattern(pattern string) string {
 func (m *Mux) Group(pattern string, middlewares ...Middleware) *Group {
 	return &Group{
 		mux:         m,
-		middlewares: middlewares,
+		middlewares: append(m.middlewares, middlewares...),
 		prefix:      compensatePattern(pattern),
 	}
 }
@@ -105,39 +105,39 @@ func (m *Mux) Use(middlewares ...Middleware) {
 }
 
 func (m *Mux) Get(pattern string, handlerFunc http.HandlerFunc, middlewares ...Middleware) {
-	m.Handle(http.MethodGet, pattern, handlerFunc, middlewares...)
+	m.Handle(http.MethodGet, pattern, handlerFunc, append(m.middlewares, middlewares...)...)
 }
 
 func (m *Mux) Post(pattern string, handlerFunc http.HandlerFunc, middlewares ...Middleware) {
-	m.Handle(http.MethodPost, pattern, handlerFunc, middlewares...)
+	m.Handle(http.MethodPost, pattern, handlerFunc, append(m.middlewares, middlewares...)...)
 }
 
 func (m *Mux) Put(pattern string, handlerFunc http.HandlerFunc, middlewares ...Middleware) {
-	m.Handle(http.MethodPut, pattern, handlerFunc, middlewares...)
+	m.Handle(http.MethodPut, pattern, handlerFunc, append(m.middlewares, middlewares...)...)
 }
 
 func (m *Mux) Delete(pattern string, handlerFunc http.HandlerFunc, middlewares ...Middleware) {
-	m.Handle(http.MethodDelete, pattern, handlerFunc, middlewares...)
+	m.Handle(http.MethodDelete, pattern, handlerFunc, append(m.middlewares, middlewares...)...)
 }
 
 func (m *Mux) Head(pattern string, handlerFunc http.HandlerFunc, middlewares ...Middleware) {
-	m.Handle(http.MethodHead, pattern, handlerFunc, middlewares...)
+	m.Handle(http.MethodHead, pattern, handlerFunc, append(m.middlewares, middlewares...)...)
 }
 
 func (m *Mux) Options(pattern string, handlerFunc http.HandlerFunc, middlewares ...Middleware) {
-	m.Handle(http.MethodOptions, pattern, handlerFunc, middlewares...)
+	m.Handle(http.MethodOptions, pattern, handlerFunc, append(m.middlewares, middlewares...)...)
 }
 
 func (m *Mux) Patch(pattern string, handlerFunc http.HandlerFunc, middlewares ...Middleware) {
-	m.Handle(http.MethodPatch, pattern, handlerFunc, middlewares...)
+	m.Handle(http.MethodPatch, pattern, handlerFunc, append(m.middlewares, middlewares...)...)
 }
 
 func (m *Mux) Connect(pattern string, handlerFunc http.HandlerFunc, middlewares ...Middleware) {
-	m.Handle(http.MethodConnect, pattern, handlerFunc, middlewares...)
+	m.Handle(http.MethodConnect, pattern, handlerFunc, append(m.middlewares, middlewares...)...)
 }
 
 func (m *Mux) Trace(pattern string, handlerFunc http.HandlerFunc, middlewares ...Middleware) {
-	m.Handle(http.MethodTrace, pattern, handlerFunc, middlewares...)
+	m.Handle(http.MethodTrace, pattern, handlerFunc, append(m.middlewares, middlewares...)...)
 }
 
 func (m *Mux) FileServer(pattern, dir string) {
@@ -164,7 +164,7 @@ func (m *Mux) Handle(method, pattern string, handler http.Handler, middlewares .
 	if isStaticPattern(pattern) {
 		if _, ok := parent.children[pattern]; !ok {
 			child := newNode()
-			child.middlewares = append(m.middlewares, middlewares...)
+			child.middlewares = middlewares
 			child.handler = handler
 			parent.newChild(child, pattern)
 		}
@@ -221,7 +221,7 @@ func (m *Mux) Handle(method, pattern string, handler http.Handler, middlewares .
 		}
 
 		if i >= len(pattern)-1 {
-			child.middlewares = append(m.middlewares, middlewares...)
+			child.middlewares = middlewares
 			child.handler = handler
 		}
 
