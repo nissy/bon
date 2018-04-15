@@ -2,14 +2,21 @@ package middleware
 
 import "net/http"
 
-func BasicAuth(username, password string) func(next http.Handler) http.Handler {
+type BasicAuthUser struct {
+	Name     string
+	Password string
+}
+
+func BasicAuth(users []BasicAuthUser) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		fn := func(w http.ResponseWriter, r *http.Request) {
-			if u, p, ok := r.BasicAuth(); !ok || username != u || password != p {
-				w.Header().Set("WWW-Authenticate", `Basic realm="MY REALM"`)
-				w.WriteHeader(http.StatusUnauthorized)
-				w.Write([]byte(http.StatusText(http.StatusUnauthorized)))
-				return
+			for _, v := range users {
+				if u, p, ok := r.BasicAuth(); !ok || v.Name != u || v.Password != p {
+					w.Header().Set("WWW-Authenticate", `Basic realm="MY REALM"`)
+					w.WriteHeader(http.StatusUnauthorized)
+					w.Write([]byte(http.StatusText(http.StatusUnauthorized)))
+					return
+				}
 			}
 
 			next.ServeHTTP(w, r)
