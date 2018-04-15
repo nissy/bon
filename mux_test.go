@@ -2,6 +2,9 @@ package bon
 
 import (
 	"bytes"
+	"errors"
+	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -20,7 +23,7 @@ type Reqest struct {
 	WantBody       string
 }
 
-func MiddlewareTest(v string) func(next http.Handler) http.Handler {
+func WriteMiddleware(v string) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		fn := func(w http.ResponseWriter, r *http.Request) {
 			w.Write([]byte(v))
@@ -59,7 +62,79 @@ func (p *Pattern) Close() {
 	p.Server.Close()
 }
 
-func TestMuxParam(t *testing.T) {
+func Methods(sv *httptest.Server, prefix string) error {
+	for _, v := range []string{http.MethodGet, http.MethodHead, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodConnect, http.MethodOptions, http.MethodTrace} {
+		req, err := http.NewRequest(v, fmt.Sprintf("%s/%s%s", sv.URL, prefix, v), nil)
+
+		if err != nil {
+			return err
+		}
+
+		res, err := http.DefaultClient.Do(req)
+
+		if err != nil {
+			return err
+		}
+
+		if res.StatusCode != http.StatusOK {
+			return errors.New(fmt.Sprintf("Method=%q, StatusCode=%d", v, res.StatusCode))
+		}
+
+		body, err := ioutil.ReadAll(res.Body)
+
+		if err != nil {
+			return err
+		}
+
+		if v != http.MethodHead && string(body) != v {
+			return errors.New(fmt.Sprintf("Method=%q, Body=%s", v, string(body)))
+		}
+	}
+
+	return nil
+}
+
+func TestMuxMethods(t *testing.T) {
+	r := NewRouter()
+
+	r.Get(http.MethodGet, func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(http.MethodGet))
+	})
+	r.Head(http.MethodHead, func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(http.MethodHead))
+	})
+	r.Post(http.MethodPost, func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(http.MethodPost))
+	})
+	r.Put(http.MethodPut, func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(http.MethodPut))
+	})
+	r.Patch(http.MethodPatch, func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(http.MethodPatch))
+	})
+	r.Delete(http.MethodDelete, func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(http.MethodDelete))
+	})
+	r.Connect(http.MethodConnect, func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(http.MethodConnect))
+	})
+	r.Options(http.MethodOptions, func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(http.MethodOptions))
+	})
+	r.Trace(http.MethodTrace, func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(http.MethodTrace))
+	})
+
+	sv := httptest.NewServer(r)
+
+	if err := Methods(sv, ""); err != nil {
+		t.Fatalf(err.Error())
+	}
+
+	defer sv.Close()
+}
+
+func TestMuxRouting(t *testing.T) {
 	r := NewRouter()
 
 	r.Get("/users/:name", func(w http.ResponseWriter, r *http.Request) {
@@ -80,7 +155,7 @@ func TestMuxParam(t *testing.T) {
 	p.Do(t)
 }
 
-func TestMuxParam2(t *testing.T) {
+func TestMuxRouting2(t *testing.T) {
 	r := NewRouter()
 
 	r.Get("/users/:name", func(w http.ResponseWriter, r *http.Request) {
@@ -92,9 +167,9 @@ func TestMuxParam2(t *testing.T) {
 
 	p := &Pattern{
 		Reqests: []*Reqest{
-			//{"/users/aaa", 200, "aaa"},
-			//{"/users/bbb/ccc", 200, "bbbccc"},
-			//{"/users", 404, BodyNotFound},
+			{"/users/aaa", 200, "aaa"},
+			{"/users/bbb/ccc", 200, "bbbccc"},
+			{"/users", 404, BodyNotFound},
 			{"/users/ccc/ddd", 404, BodyNotFound},
 		},
 
@@ -105,7 +180,7 @@ func TestMuxParam2(t *testing.T) {
 	p.Do(t)
 }
 
-func TestMuxParam3(t *testing.T) {
+func TestMuxRouting3(t *testing.T) {
 	r := NewRouter()
 
 	r.Get("/users/:name", func(w http.ResponseWriter, r *http.Request) {
@@ -138,7 +213,7 @@ func TestMuxParam3(t *testing.T) {
 	p.Do(t)
 }
 
-func TestMuxBackTrack(t *testing.T) {
+func TestMuxRouting4(t *testing.T) {
 	r := NewRouter()
 
 	r.Get("/users/aaa", func(w http.ResponseWriter, r *http.Request) {
@@ -171,12 +246,12 @@ func TestMuxBackTrack(t *testing.T) {
 func TestMuxMiddleware(t *testing.T) {
 	r := NewRouter()
 
-	r.Use(MiddlewareTest("M"))
+	r.Use(WriteMiddleware("M"))
 
 	r.Get("/users/:name", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte([]byte(URLParam(r, "name"))))
 	},
-		MiddlewareTest("M"),
+		WriteMiddleware("M"),
 	)
 
 	p := &Pattern{

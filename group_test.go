@@ -6,7 +6,48 @@ import (
 	"testing"
 )
 
-func TestMuxGroupParam(t *testing.T) {
+func TestGroupMethods(t *testing.T) {
+	r := NewRouter()
+	g := r.Group("/group")
+
+	g.Get(http.MethodGet, func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(http.MethodGet))
+	})
+	g.Head(http.MethodHead, func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(http.MethodHead))
+	})
+	g.Post(http.MethodPost, func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(http.MethodPost))
+	})
+	g.Put(http.MethodPut, func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(http.MethodPut))
+	})
+	g.Patch(http.MethodPatch, func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(http.MethodPatch))
+	})
+	g.Delete(http.MethodDelete, func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(http.MethodDelete))
+	})
+	g.Connect(http.MethodConnect, func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(http.MethodConnect))
+	})
+	g.Options(http.MethodOptions, func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(http.MethodOptions))
+	})
+	g.Trace(http.MethodTrace, func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(http.MethodTrace))
+	})
+
+	sv := httptest.NewServer(r)
+
+	if err := Methods(sv, "group/"); err != nil {
+		t.Fatalf(err.Error())
+	}
+
+	defer sv.Close()
+}
+
+func TestGroupRouting(t *testing.T) {
 	r := NewRouter()
 
 	users := r.Group("/users/:name")
@@ -27,25 +68,25 @@ func TestMuxGroupParam(t *testing.T) {
 	p.Do(t)
 }
 
-func TestMuxGroupMiddleware(t *testing.T) {
+func TestGroupMiddleware(t *testing.T) {
 	r := NewRouter()
 
 	a := r.Group("/a")
-	a.Use(MiddlewareTest("MA"))
+	a.Use(WriteMiddleware("MA"))
 	a.Get("/a", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("a"))
 	})
 
 	aa := a.Group("/a")
-	aa.Use(MiddlewareTest("MAA"))
+	aa.Use(WriteMiddleware("MAA"))
 	aa.Get("/a", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("aa"))
 	})
 
-	r.Use(MiddlewareTest("M"))
+	r.Use(WriteMiddleware("M"))
 
 	b := r.Group("/b")
-	b.Use(MiddlewareTest("MB"))
+	b.Use(WriteMiddleware("MB"))
 	b.Get("/b", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("b"))
 	})
