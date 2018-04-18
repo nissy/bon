@@ -13,7 +13,6 @@ var contextKey = &struct {
 
 type (
 	Context struct {
-		ctx    context.Context
 		params []param
 	}
 
@@ -24,12 +23,15 @@ type (
 )
 
 func (m *Mux) NewContext() *Context {
-	ctx := &Context{
+	return &Context{
 		params: make([]param, 0, m.maxParam),
 	}
+}
 
-	ctx.ctx = context.WithValue(context.Background(), contextKey, ctx)
-	return ctx
+func (ctx *Context) WithContext(r *http.Request) *http.Request {
+	return r.WithContext(
+		context.WithValue(r.Context(), contextKey, ctx),
+	)
 }
 
 func (ctx *Context) reset() *Context {
