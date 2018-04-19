@@ -200,8 +200,8 @@ func TestMuxRouting3(t *testing.T) {
 		Reqests: []*Reqest{
 			{"/users/aaa", 200, "aaa"},
 			{"/users/bbb/ccc", 200, "bbbccc"},
-			{"/users", 404, BodyNotFound},
-			{"/users/ccc/ddd", 404, BodyNotFound},
+			{"/users", 200, "*"},
+			{"/users/ccc/ddd", 200, "*"},
 			{"/a/a/a/a/a/a/a/a/a", 200, "*2"},
 			{"/b/a/a/a/a/a/a/a/a", 200, "*"},
 		},
@@ -234,6 +234,33 @@ func TestMuxRouting4(t *testing.T) {
 			{"/users/bbb", 200, "param-bbb"},
 			{"/users/ccc", 200, "static-ccc"},
 			{"/users/ccc/ddd", 404, BodyNotFound},
+		},
+
+		Server: httptest.NewServer(r),
+	}
+
+	defer p.Close()
+	p.Do(t)
+}
+
+func TestMuxRouting5(t *testing.T) {
+	r := NewRouter()
+
+	r.Get("/aaa", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte([]byte("static-aaa")))
+	})
+	r.Get("/:name", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte([]byte("param-" + URLParam(r, "name"))))
+	})
+	r.Get("/aaa/*", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte([]byte("*")))
+	})
+
+	p := &Pattern{
+		Reqests: []*Reqest{
+			{"/aaa", 200, "static-aaa"},
+			{"/bbb", 200, "param-bbb"},
+			{"/aaa/ddd", 200, "*"},
 		},
 
 		Server: httptest.NewServer(r),

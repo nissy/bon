@@ -239,7 +239,7 @@ func (m *Mux) Handle(method, pattern string, handler http.Handler, middlewares .
 }
 
 func (m *Mux) lookup(r *http.Request) (*node, *Context) {
-	var parent, child *node
+	var parent, child, backtrack *node
 
 	if parent = m.tree.children[r.Method]; parent == nil {
 		return nil, nil
@@ -286,7 +286,11 @@ func (m *Mux) lookup(r *http.Request) (*node, *Context) {
 				return child, ctx
 			}
 
-			if len(child.children) == 0 {
+			if b := parent.children["*"]; b != nil {
+				backtrack = b
+			}
+
+			if len(child.children) == 0 && backtrack != nil {
 				if child.kind == nodeKindCatchAll && child.handler != nil {
 					return child, ctx
 				}
@@ -299,6 +303,10 @@ func (m *Mux) lookup(r *http.Request) (*node, *Context) {
 		}
 
 		break
+	}
+
+	if backtrack != nil && backtrack.handler != nil {
+		return backtrack, ctx
 	}
 
 	return nil, nil
