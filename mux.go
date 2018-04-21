@@ -276,8 +276,8 @@ func (m *Mux) lookup(r *http.Request) (*node, *Context) {
 				}
 
 				ctx.PutParam(child.param, edge)
-			} else {
-				child = parent.children["*"]
+			} else if child = parent.children["*"]; child != nil && child.handler != nil {
+				backtrack = child
 			}
 		}
 
@@ -286,8 +286,10 @@ func (m *Mux) lookup(r *http.Request) (*node, *Context) {
 				return child, ctx
 			}
 
-			if b := parent.children["*"]; b != nil {
-				backtrack = b
+			if child.kind != nodeKindCatchAll {
+				if b := parent.children["*"]; b != nil && b.handler != nil {
+					backtrack = b
+				}
 			}
 
 			if len(child.children) == 0 && backtrack != nil {
@@ -305,11 +307,7 @@ func (m *Mux) lookup(r *http.Request) (*node, *Context) {
 		break
 	}
 
-	if backtrack != nil && backtrack.handler != nil {
-		return backtrack, ctx
-	}
-
-	return nil, nil
+	return backtrack, ctx
 }
 
 func (m *Mux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
