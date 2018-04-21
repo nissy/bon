@@ -7,6 +7,12 @@ Bon is "somewhat" fast http router of Go designed by Patricia tree
 
 ## Match Pattern
 
+Priority
+ - static
+ - param
+ - all
+
+
 ```go
 package main
 
@@ -19,14 +25,17 @@ import (
 func main() {
 	r := bon.NewRouter()
 
-	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+    //static
+	r.Get("/users/taro", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("static"))
 	})
 
-	r.Get("/:name", func(w http.ResponseWriter, r *http.Request) {
+    //param
+	r.Get("/users/:name", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("param name is " + bon.URLParam(r, "name")))
 	})
 
+    //all
 	r.Get("/*", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("all"))
 	})

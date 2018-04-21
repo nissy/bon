@@ -286,17 +286,15 @@ func (m *Mux) lookup(r *http.Request) (*node, *Context) {
 				return child, ctx
 			}
 
-			if child.kind != nodeKindCatchAll {
-				if b := parent.children["*"]; b != nil && b.handler != nil {
-					backtrack = b
-				}
+			if child.kind == nodeKindCatchAll && child.handler != nil {
+				return child, ctx
 			}
 
-			if len(child.children) == 0 && backtrack != nil {
-				if child.kind == nodeKindCatchAll && child.handler != nil {
-					return child, ctx
-				}
+			if b := parent.children["*"]; b != nil && b.handler != nil {
+				backtrack = b
+			}
 
+			if len(child.children) == 0 {
 				break
 			}
 
