@@ -270,6 +270,39 @@ func TestMuxRouting5(t *testing.T) {
 	p.Do(t)
 }
 
+func TestMuxRouting6(t *testing.T) {
+	r := NewRouter()
+
+	r.Get("/aaa", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte([]byte("aaa")))
+	})
+	r.Get("/:name/bbb", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte([]byte(URLParam(r, "name"))))
+	})
+	r.Get("/aaa/*", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte([]byte("*")))
+	})
+	r.Get("/aaa/*/ddd", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte([]byte("*2")))
+	})
+
+	p := &Pattern{
+		Reqests: []*Reqest{
+			{"/aaa", 200, "aaa"},
+			{"/bbb/bbb", 200, "bbb"},
+			{"/aaa/ccc", 200, "*"},
+			{"/aaa/bbb/ddd", 200, "*2"},
+			{"/aaa/bbb/ccc/ddd", 200, "*"},
+			{"/a", 404, BodyNotFound},
+		},
+
+		Server: httptest.NewServer(r),
+	}
+
+	defer p.Close()
+	p.Do(t)
+}
+
 func TestMuxMiddleware(t *testing.T) {
 	r := NewRouter()
 
