@@ -32,17 +32,17 @@ import (
 func main() {
 	r := bon.NewRouter()
 
-    //Static
+	//Static
 	r.Get("/users/taro", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Static"))
 	})
 
-    //Param
+	//Param
 	r.Get("/users/:name", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Param name is " + bon.URLParam(r, "name")))
 	})
 
-    //All
+	//All
 	r.Get("/*", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("All"))
 	})
