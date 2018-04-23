@@ -1,17 +1,24 @@
 <img alt="BON" src="https://nissy.github.io/bon/bon.svg" width="230" />
 
-Bon is "somewhat" fast http router of Go designed by Patricia tree
+Bon is fast http router of Go designed by Patricia tree
  
  [![GoDoc Widget]][GoDoc]
 
+## Features
+ - Lightweight
+ - Middleware framework
+ - Not use a third party package
+ - Standard request handler
 
-## Match Pattern
+## Match Patterns
 
-Priority
- - static
- - param
- - all
-
+#### Priority
+ - Static
+  - Exact match
+ - Param
+  - Directorys range match
+ - All
+  - All range match
 
 ```go
 package main
@@ -25,100 +32,34 @@ import (
 func main() {
 	r := bon.NewRouter()
 
-    //static
+    //Static
 	r.Get("/users/taro", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("static"))
+		w.Write([]byte("Static"))
 	})
 
-    //param
+    //Param
 	r.Get("/users/:name", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("param name is " + bon.URLParam(r, "name")))
+		w.Write([]byte("Param name is " + bon.URLParam(r, "name")))
 	})
 
-    //all
+    //All
 	r.Get("/*", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("all"))
+		w.Write([]byte("All"))
 	})
 
 	http.ListenAndServe(":8080", r)
 }
 ```
 
-## Examples
-
-### Easy
-
-```go
-package main
-
-import (
-	"net/http"
-
-	"github.com/nissy/bon"
-)
-
-func main() {
-	r := bon.NewRouter()
-
-	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("Halo"))
-	})
-
-	http.ListenAndServe(":8080", r)
-}
-```
-
-### Group
+## Example
+- Group is inherits middleware and grants a prefix
+- Route is does not inherit middleware
 
 ```go
 package main
 
 import (
 	"net/http"
-
-	"github.com/nissy/bon"
-)
-
-func main() {
-	r := bon.NewRouter()
-
-	users := r.Group("/users/:name")
-	users.Get("/:age", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("Hallo " + bon.URLParam(r, "name") + " " + bon.URLParam(r, "age")))
-	})
-
-	http.ListenAndServe(":8080", r)
-}
-```
-
-### FileServer
-
-```go
-package main
-
-import (
-	"net/http"
-
-	"github.com/nissy/bon"
-)
-
-func main() {
-	r := bon.NewRouter()
-
-	r.FileServer("/assets/", "static/")
-
-	http.ListenAndServe(":8080", r)
-}
-```
-
-### Middleware
-
-```go
-package main
-
-import (
-	"net/http"
-	"time"
 
 	"github.com/nissy/bon"
 	"github.com/nissy/bon/middleware"
@@ -127,27 +68,41 @@ import (
 func main() {
 	r := bon.NewRouter()
 
-	r.Get("/users/:name", func(w http.ResponseWriter, r *http.Request) {
+	v := r.Group("/v1")
+	v.Use(
+		middleware.CORS(middleware.AccessControlConfig{
+			AllowOrigin:      "*",
+			AllowCredentials: false,
+			AllowMethods: []string{
+				http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete, http.MethodOptions,
+			},
+			AllowHeaders: []string{
+				"Authorization",
+			},
+			ExposeHeaders: []string{
+				"link",
+			},
+			MaxAge: 86400,
+		}),
+	)
+	v.Options("*", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})
+	v.Get("/users/:name", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Hallo," + bon.URLParam(r, "name")))
 	})
 
-	r.Use(
-		middleware.BasicAuth("username", "password"),
-		middleware.Timeout(2500*time.Millisecond),
-		middleware.CORS(middleware.AccessControlConfig{
-			AllowOrigin:      "*",
-			AllowCredentials: true,
-			AllowMethods: []string{
-				bon.GET, bon.POST, bon.PUT, bon.DELETE,
-			},
-			AllowHeaders: []string{
-				"x-header",
+	admin := r.Group("/admin")
+	admin.Use(
+		middleware.BasicAuth([]middleware.BasicAuthUser{
+			{
+				Name:     "name",
+				Password: "password",
 			},
 		}),
 	)
-
-	r.Get("/admin", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("Hallo,Admin"))
+	admin.Get("/users/:name", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("Hallo, admin " + bon.URLParam(r, "name")))
 	})
 
 	http.ListenAndServe(":8080", r)
@@ -163,7 +118,6 @@ The GitHub API is rather large, consisting of 203 routes. The tasks are basicall
 ```
 Bon            10000     105265 ns/op     42753 B/op     167 allocs/op
 ```
-
 
 Other http routers
 ```
