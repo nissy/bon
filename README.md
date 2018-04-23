@@ -12,13 +12,10 @@ Bon is fast http router of Go designed by Patricia tree
 
 ## Match Patterns
 
-#### Priority
- - Static
-  - Exact match
- - Param
-  - Directorys range match
- - All
-  - All range match
+#### Priority high order
+ - `static` is exact match
+ - `param` is directorys range match
+ - `all` is all range match
 
 ```go
 package main
@@ -32,19 +29,19 @@ import (
 func main() {
 	r := bon.NewRouter()
 
-	//Static
+	//static
 	r.Get("/users/taro", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("Static"))
+		w.Write([]byte("static"))
 	})
 
-	//Param
+	//param
 	r.Get("/users/:name", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("Param name is " + bon.URLParam(r, "name")))
+		w.Write([]byte("param name is " + bon.URLParam(r, "name")))
 	})
 
-	//All
+	//all
 	r.Get("/*", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("All"))
+		w.Write([]byte("all"))
 	})
 
 	http.ListenAndServe(":8080", r)
