@@ -28,6 +28,7 @@ func (m *Mux) NewContext() *Context {
 	}
 }
 
+// allocate
 func (ctx *Context) WithContext(r *http.Request) *http.Request {
 	return r.WithContext(
 		context.WithValue(r.Context(), contextKey, ctx),
