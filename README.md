@@ -1,6 +1,6 @@
-<img alt="BON" src="https://nissy.github.io/bon/bon.svg" width="230" />
+<img alt="BON" src="https://nissy.github.io/bon/bon.png" width="300" />
 
-Bon is fast http router of Go designed by Patricia tree
+梵 is fast http router of Go designed by Patricia tree
  
  [![GoDoc Widget]][GoDoc]
 
