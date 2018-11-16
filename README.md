@@ -1,4 +1,4 @@
-<img alt="BON" src="https://nissy.github.io/bon/bon.png" width="200" />
+<img alt="BON" src="https://nissy.github.io/bon/bon.svg" width="250" />
 
 Bon is fast http router of Go designed by Patricia tree
  
