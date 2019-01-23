@@ -162,12 +162,15 @@ func (m *Mux) Handle(method, pattern string, handler http.Handler, middlewares .
 	pattern = compensatePattern(pattern)
 
 	if isStaticPattern(pattern) {
-		if _, ok := parent.children[pattern]; !ok {
-			child := newNode()
-			child.middlewares = middlewares
-			child.handler = handler
-			parent.newChild(child, pattern)
+		child, ok := parent.children[pattern]
+
+		if !ok {
+			child = newNode()
 		}
+
+		child.middlewares = middlewares
+		child.handler = handler
+		parent.newChild(child, pattern)
 
 		return
 	}

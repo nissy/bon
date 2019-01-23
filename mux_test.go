@@ -303,6 +303,35 @@ func TestMuxRouting6(t *testing.T) {
 	p.Do(t)
 }
 
+func TestMuxRoutingOverride(t *testing.T) {
+	r := NewRouter()
+
+	r.Get("/aaa", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte([]byte("aaa")))
+	})
+	r.Get("/aaa", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte([]byte("aaa-override")))
+	})
+	r.Get("/aaa/:name", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte([]byte("aaa-" + URLParam(r, "name"))))
+	})
+	r.Get("/aaa/:name", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte([]byte("aaa-override-" + URLParam(r, "name"))))
+	})
+
+	p := &Pattern{
+		Reqests: []*Reqest{
+			{"/aaa", 200, "aaa-override"},
+			{"/aaa/bbb", 200, "aaa-override-bbb"},
+		},
+
+		Server: httptest.NewServer(r),
+	}
+
+	defer p.Close()
+	p.Do(t)
+}
+
 func TestMuxMiddleware(t *testing.T) {
 	r := NewRouter()
 
