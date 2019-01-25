@@ -303,6 +303,68 @@ func TestMuxRouting6(t *testing.T) {
 	p.Do(t)
 }
 
+func TestMuxRouting7(t *testing.T) {
+	r := NewRouter()
+
+	r.Get("/a/b/c", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte([]byte("/a/b/c")))
+	})
+	r.Get("/a/b/:c", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte([]byte(fmt.Sprintf("/a/b/:c %s", URLParam(r, "c")))))
+	})
+	r.Get("/a/:b/c", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte([]byte(fmt.Sprintf("/a/:b/c %s", URLParam(r, "b")))))
+	})
+	r.Get("/a/:b/:c", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte([]byte(fmt.Sprintf("/a/:b/:c %s %s", URLParam(r, "b"), URLParam(r, "c")))))
+	})
+	r.Get("/:a/b/c", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte([]byte(fmt.Sprintf("/:a/b/c %s", URLParam(r, "a")))))
+	})
+	r.Get("/:a/:b/:c", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte([]byte(fmt.Sprintf("/:a/:b/:c %s %s %s", URLParam(r, "a"), URLParam(r, "b"), URLParam(r, "c")))))
+	})
+
+	p := &Pattern{
+		Reqests: []*Reqest{
+			{"/a/b/c", 200, "/a/b/c"},
+			{"/a/b/ccc", 200, "/a/b/:c ccc"},
+			{"/a/bbb/c", 200, "/a/:b/c bbb"},
+			{"/a/bbb/ccc", 200, "/a/:b/:c bbb ccc"},
+			{"/aaa/b/c", 200, "/:a/b/c aaa"},
+			{"/aaa/bbb/ccc", 200, "/:a/:b/:c aaa bbb ccc"},
+		},
+
+		Server: httptest.NewServer(r),
+	}
+
+	defer p.Close()
+	p.Do(t)
+}
+
+func TestMuxRouting8(t *testing.T) {
+	r := NewRouter()
+
+	r.Get("/a/:b/c", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte([]byte(fmt.Sprintf("/a/:b/c %s", URLParam(r, "b")))))
+	})
+	r.Get("/a/:bb/cc", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte([]byte(fmt.Sprintf("/a/:bb/cc %s", URLParam(r, "bb")))))
+	})
+
+	p := &Pattern{
+		Reqests: []*Reqest{
+			{"/a/b/c", 200, "/a/:b/c b"},
+			{"/a/bb/cc", 200, "/a/:bb/cc bb"},
+		},
+
+		Server: httptest.NewServer(r),
+	}
+
+	defer p.Close()
+	p.Do(t)
+}
+
 func TestMuxRoutingOverride(t *testing.T) {
 	r := NewRouter()
 

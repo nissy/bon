@@ -23,12 +23,17 @@ type (
 	nodeKind uint8
 
 	node struct {
-		kind        nodeKind
-		parent      *node
-		children    map[string]*node
-		middlewares []Middleware
+		kind     nodeKind
+		parent   *node
+		children map[string]*node
+		endpoint *endpoint
+	}
+
+	endpoint struct {
 		handler     http.Handler
-		param       string
+		middlewares []Middleware
+		paramKeys   []string
+		pattern     string
 	}
 
 	Middleware func(http.Handler) http.Handler
@@ -154,7 +159,6 @@ func (m *Mux) FileServer(pattern, dir string) {
 
 func (m *Mux) Handle(method, pattern string, handler http.Handler, middlewares ...Middleware) {
 	parent := m.tree.children[method]
-
 	if parent == nil {
 		parent = m.tree.newChild(newNode(), method)
 	}
@@ -163,19 +167,22 @@ func (m *Mux) Handle(method, pattern string, handler http.Handler, middlewares .
 
 	if isStaticPattern(pattern) {
 		child, ok := parent.children[pattern]
-
 		if !ok {
 			child = newNode()
 		}
 
-		child.middlewares = middlewares
-		child.handler = handler
-		parent.newChild(child, pattern)
+		child.endpoint = &endpoint{
+			handler:     handler,
+			middlewares: middlewares,
+			pattern:     pattern,
+		}
 
+		parent.newChild(child, pattern)
 		return
 	}
 
-	var si, ei, pi int
+	var si, ei int
+	var pKeys []string
 
 	// i = 0 is '/'
 	for i := 1; i < len(pattern); i++ {
@@ -198,11 +205,11 @@ func (m *Mux) Handle(method, pattern string, handler http.Handler, middlewares .
 
 		edge := pattern[si:ei]
 		kind := nodeKindStatic
-		var param string
+		var pKey string
 
 		switch edge[0] {
 		case ':':
-			param = edge[1:]
+			pKey = edge[1:]
 			edge = ":"
 			kind = nodeKindParam
 		case '*':
@@ -211,21 +218,23 @@ func (m *Mux) Handle(method, pattern string, handler http.Handler, middlewares .
 		}
 
 		child, exist := parent.children[edge]
-
 		if !exist {
 			child = newNode()
 		}
 
 		child.kind = kind
 
-		if len(param) > 0 {
-			child.param = param
-			pi++
+		if len(pKey) > 0 {
+			pKeys = append(pKeys, pKey)
 		}
 
 		if i >= len(pattern)-1 {
-			child.middlewares = middlewares
-			child.handler = handler
+			child.endpoint = &endpoint{
+				handler:     handler,
+				middlewares: middlewares,
+				pattern:     pattern,
+				paramKeys:   pKeys,
+			}
 		}
 
 		if exist {
@@ -236,12 +245,12 @@ func (m *Mux) Handle(method, pattern string, handler http.Handler, middlewares .
 		parent = parent.newChild(child, edge)
 	}
 
-	if pi > m.maxParam {
-		m.maxParam = pi
+	if len(pKeys) > m.maxParam {
+		m.maxParam = len(pKeys)
 	}
 }
 
-func (m *Mux) lookup(r *http.Request) (*node, *Context) {
+func (m *Mux) lookup(r *http.Request) (*endpoint, *Context) {
 	var parent, child, backtrack *node
 
 	if parent = m.tree.children[r.Method]; parent == nil {
@@ -252,7 +261,7 @@ func (m *Mux) lookup(r *http.Request) (*node, *Context) {
 
 	//STATIC PATH
 	if child = parent.children[rPath]; child != nil {
-		return child, nil
+		return child.endpoint, nil
 	}
 
 	var si, ei int
@@ -278,26 +287,26 @@ func (m *Mux) lookup(r *http.Request) (*node, *Context) {
 					ctx = m.pool.Get().(*Context)
 				}
 
-				ctx.PutParam(child.param, edge)
-			} else if child = parent.children["*"]; child != nil && child.handler != nil {
+				ctx.params.values = append(ctx.params.values, edge)
+			} else if child = parent.children["*"]; child != nil && child.endpoint != nil {
 				backtrack = child
 			}
 		}
 
 		if child != nil {
-			if i >= len(rPath)-1 && child.handler != nil {
-				return child, ctx
+			if i >= len(rPath)-1 && child.endpoint != nil {
+				return child.endpoint, ctx
 			}
 
 			if child.kind != nodeKindCatchAll {
-				if b := parent.children["*"]; b != nil && b.handler != nil {
+				if b := parent.children["*"]; b != nil && b.endpoint != nil {
 					backtrack = b
 				}
 			}
 
 			if len(child.children) == 0 {
-				if child.kind == nodeKindCatchAll && child.handler != nil {
-					return child, ctx
+				if child.kind == nodeKindCatchAll && child.endpoint != nil {
+					return child.endpoint, ctx
 				}
 
 				break
@@ -310,17 +319,22 @@ func (m *Mux) lookup(r *http.Request) (*node, *Context) {
 		break
 	}
 
-	return backtrack, ctx
+	if backtrack != nil {
+		return backtrack.endpoint, ctx
+	}
+
+	return nil, ctx
 }
 
 func (m *Mux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if n, ctx := m.lookup(r); n != nil {
+	if e, ctx := m.lookup(r); e != nil {
 		if ctx != nil {
+			ctx.params.keys = e.paramKeys
 			r = ctx.WithContext(r)
 		}
 
-		if len(n.middlewares) == 0 {
-			n.handler.ServeHTTP(w, r)
+		if len(e.middlewares) == 0 {
+			e.handler.ServeHTTP(w, r)
 
 			if ctx != nil {
 				m.pool.Put(ctx.reset())
@@ -329,10 +343,9 @@ func (m *Mux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		h := n.middlewares[len(n.middlewares)-1](n.handler)
-
-		for i := len(n.middlewares) - 2; i >= 0; i-- {
-			h = n.middlewares[i](h)
+		h := e.middlewares[len(e.middlewares)-1](e.handler)
+		for i := len(e.middlewares) - 2; i >= 0; i-- {
+			h = e.middlewares[i](h)
 		}
 
 		h.ServeHTTP(w, r)
