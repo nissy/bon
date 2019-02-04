@@ -15,11 +15,11 @@ Bon is fast http router of Go designed by Patricia tree
 
 #### Priority high order
  - `static` is exact match
-  - ```/users/taro```
+    - ```/users/taro```
  - `param` is directorys range match
-  - ```/users/:name```
+    - ```/users/:name```
  - `any` is all range match
-  - ```/*```
+    - ```/*```
 
 ```go
 package main
