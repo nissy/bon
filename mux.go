@@ -8,7 +8,7 @@ import (
 const (
 	nodeKindStatic nodeKind = iota
 	nodeKindParam
-	nodeKindCatchAll
+	nodeKindAny
 )
 
 type (
@@ -214,7 +214,7 @@ func (m *Mux) Handle(method, pattern string, handler http.Handler, middlewares .
 			kind = nodeKindParam
 		case '*':
 			edge = "*"
-			kind = nodeKindCatchAll
+			kind = nodeKindAny
 		}
 
 		child, exist := parent.children[edge]
@@ -298,14 +298,14 @@ func (m *Mux) lookup(r *http.Request) (*endpoint, *Context) {
 				return child.endpoint, ctx
 			}
 
-			if child.kind != nodeKindCatchAll {
+			if child.kind != nodeKindAny {
 				if b := parent.children["*"]; b != nil && b.endpoint != nil {
 					backtrack = b
 				}
 			}
 
 			if len(child.children) == 0 {
-				if child.kind == nodeKindCatchAll && child.endpoint != nil {
+				if child.kind == nodeKindAny && child.endpoint != nil {
 					return child.endpoint, ctx
 				}
 

@@ -7,15 +7,19 @@ Bon is fast http router of Go designed by Patricia tree
 ## Features
  - Lightweight
  - Middleware framework
- - Not use a third party package
- - Standard request handler
+ - Not use third party package
+ - Standard http request handler
+ - Flexible routing
 
 ## Match Patterns
 
 #### Priority high order
  - `static` is exact match
+  - ```/users/taro```
  - `param` is directorys range match
- - `all` is all range match
+  - ```/users/:name```
+ - `any` is all range match
+  - ```/*```
 
 ```go
 package main
@@ -29,19 +33,14 @@ import (
 func main() {
 	r := bon.NewRouter()
 
-	//static
 	r.Get("/users/taro", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("static"))
 	})
-
-	//param
 	r.Get("/users/:name", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("param name is " + bon.URLParam(r, "name")))
 	})
-
-	//all
 	r.Get("/*", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("all"))
+		w.Write([]byte("any"))
 	})
 
 	http.ListenAndServe(":8080", r)
