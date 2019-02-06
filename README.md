@@ -1,4 +1,4 @@
-<img alt="BON" src="https://nissy.github.io/bon/bon.svg" width="250" />
+<img alt="BON" src="https://nissy.github.io/bon/bon.svg" width="180" />
 
 Bon is fast http router of Go designed by Patricia tree
  
@@ -14,11 +14,11 @@ Bon is fast http router of Go designed by Patricia tree
 ## Match Patterns
 
 #### Priority high order
- - `static` is exact match
+ 1. `static` is exact match
     - ```/users/taro```
- - `param` is directorys range match
+ 1. `param` is directorys range match
     - ```/users/:name```
- - `any` is all range match
+ 1. `any` is all range match
     - ```/*```
 
 ```go
