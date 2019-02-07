@@ -48,8 +48,8 @@ func main() {
 ```
 
 ## Example
-- Group is inherits middleware and grants a prefix
-- Route is does not inherit middleware
+- ```Group``` is inherits middleware and grants a prefix
+- ```Route``` is does not inherit middleware
 
 ```go
 package main
