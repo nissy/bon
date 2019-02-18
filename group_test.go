@@ -55,17 +55,14 @@ func TestGroupRouting(t *testing.T) {
 		w.Write([]byte("name=" + URLParam(r, "name") + ", age=" + URLParam(r, "age")))
 	})
 
-	p := &Pattern{
-		Reqests: []*Reqest{
+	if err := do(r,
+		[]*Want{
 			{"/users/aaa/24", 200, "name=aaa, age=24"},
 			{"/users/bbb/23", 200, "name=bbb, age=23"},
 		},
-
-		Server: httptest.NewServer(r),
+	); err != nil {
+		t.Fatal(err)
 	}
-
-	defer p.Close()
-	p.Do(t)
 }
 
 func TestGroupMiddleware(t *testing.T) {
@@ -96,16 +93,14 @@ func TestGroupMiddleware(t *testing.T) {
 		w.Write([]byte("c"))
 	})
 
-	p := &Pattern{
-		Reqests: []*Reqest{
+	if err := do(r,
+		[]*Want{
 			{"/a/a", 200, "MAa"},
 			{"/a/a/a", 200, "MAMAAaa"},
 			{"/b/b", 200, "MMBb"},
 			{"/c/c", 200, "Mc"},
 		},
-		Server: httptest.NewServer(r),
+	); err != nil {
+		t.Fatal(err)
 	}
-
-	defer p.Close()
-	p.Do(t)
 }

@@ -12,15 +12,39 @@ import (
 
 const BodyNotFound = "404 page not found\n"
 
-type Pattern struct {
-	Reqests []*Reqest
-	Server  *httptest.Server
+type Want struct {
+	Path       string
+	StatusCode int
+	Body       string
 }
 
-type Reqest struct {
-	Path           string
-	WantStatusCode int
-	WantBody       string
+func do(h http.Handler, ws []*Want) error {
+	sv := httptest.NewServer(h)
+	defer sv.Close()
+
+	for _, v := range ws {
+		res, err := http.Get(sv.URL + v.Path)
+		if err != nil {
+			return err
+		}
+
+		if res.StatusCode != v.StatusCode {
+			return fmt.Errorf("Path=%s, StatusCode=%d, WantStatusCode=%d", v.Path, res.StatusCode, v.StatusCode)
+		}
+
+		if len(v.Body) > 0 {
+			var buf bytes.Buffer
+			if _, err := buf.ReadFrom(res.Body); err != nil {
+				return err
+			}
+
+			if buf.String() != v.Body {
+				return fmt.Errorf("Path=%s, Body=%s, WantBody=%s", v.Path, buf.String(), v.Body)
+			}
+		}
+	}
+
+	return nil
 }
 
 func WriteMiddleware(v string) func(next http.Handler) http.Handler {
@@ -32,34 +56,6 @@ func WriteMiddleware(v string) func(next http.Handler) http.Handler {
 
 		return http.HandlerFunc(fn)
 	}
-}
-
-func (p *Pattern) Do(t *testing.T) {
-	for _, v := range p.Reqests {
-		res, err := http.Get(p.Server.URL + v.Path)
-
-		if err != nil {
-			t.Fatalf(err.Error())
-		}
-
-		if res.StatusCode != v.WantStatusCode {
-			t.Fatalf("Path=%q, StatusCode=%d, Want=%d", v.Path, res.StatusCode, v.WantStatusCode)
-		}
-
-		var buf bytes.Buffer
-
-		if _, err := buf.ReadFrom(res.Body); err != nil {
-			t.Fatalf(err.Error())
-		}
-
-		if buf.String() != v.WantBody {
-			t.Fatalf("Path=%q, Body=%q, Want=%q", v.Path, buf.String(), v.WantBody)
-		}
-	}
-}
-
-func (p *Pattern) Close() {
-	p.Server.Close()
 }
 
 func Methods(sv *httptest.Server, prefix string) error {
@@ -134,60 +130,51 @@ func TestMuxMethods(t *testing.T) {
 	defer sv.Close()
 }
 
-func TestMuxRouting(t *testing.T) {
+func TestMuxRouting1(t *testing.T) {
 	r := NewRouter()
-
 	r.Get("/users/:name", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte([]byte(URLParam(r, "name"))))
+		w.Write([]byte(URLParam(r, "name")))
 	})
 
-	p := &Pattern{
-		Reqests: []*Reqest{
+	if err := do(r,
+		[]*Want{
 			{"/users/aaa", 200, "aaa"},
 			{"/users/bbb", 200, "bbb"},
 			{"/users", 404, BodyNotFound},
 		},
-
-		Server: httptest.NewServer(r),
+	); err != nil {
+		t.Fatal(err)
 	}
-
-	defer p.Close()
-	p.Do(t)
 }
 
 func TestMuxRouting2(t *testing.T) {
 	r := NewRouter()
-
 	r.Get("/users/:name", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte([]byte(URLParam(r, "name"))))
+		w.Write([]byte(URLParam(r, "name")))
 	})
 	r.Get("/users/:name/ccc", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte([]byte(URLParam(r, "name") + "ccc")))
+		w.Write([]byte(URLParam(r, "name") + "ccc"))
 	})
 
-	p := &Pattern{
-		Reqests: []*Reqest{
+	if err := do(r,
+		[]*Want{
 			{"/users/aaa", 200, "aaa"},
 			{"/users/bbb/ccc", 200, "bbbccc"},
 			{"/users", 404, BodyNotFound},
 			{"/users/ccc/ddd", 404, BodyNotFound},
 		},
-
-		Server: httptest.NewServer(r),
+	); err != nil {
+		t.Fatal(err)
 	}
-
-	defer p.Close()
-	p.Do(t)
 }
 
 func TestMuxRouting3(t *testing.T) {
 	r := NewRouter()
-
 	r.Get("/users/:name", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte([]byte(URLParam(r, "name"))))
+		w.Write([]byte(URLParam(r, "name")))
 	})
 	r.Get("/users/:name/ccc", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte([]byte(URLParam(r, "name") + "ccc")))
+		w.Write([]byte(URLParam(r, "name") + "ccc"))
 	})
 	r.Get("/*", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("*"))
@@ -196,8 +183,8 @@ func TestMuxRouting3(t *testing.T) {
 		w.Write([]byte("*2"))
 	})
 
-	p := &Pattern{
-		Reqests: []*Reqest{
+	if err := do(r,
+		[]*Want{
 			{"/users/aaa", 200, "aaa"},
 			{"/users/bbb/ccc", 200, "bbbccc"},
 			{"/users", 200, "*"},
@@ -205,89 +192,75 @@ func TestMuxRouting3(t *testing.T) {
 			{"/a/a/a/a/a/a/a/a/a", 200, "*2"},
 			{"/b/a/a/a/a/a/a/a/a", 200, "*"},
 		},
-
-		Server: httptest.NewServer(r),
+	); err != nil {
+		t.Fatal(err)
 	}
-
-	defer p.Close()
-	p.Do(t)
 }
 
 func TestMuxRouting4(t *testing.T) {
 	r := NewRouter()
-
 	r.Get("/users/aaa", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte([]byte("static-aaa")))
+		w.Write([]byte("static-aaa"))
 	})
-
 	r.Get("/users/:name", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte([]byte("param-" + URLParam(r, "name"))))
+		w.Write([]byte("param-" + URLParam(r, "name")))
 	})
-
 	r.Get("/users/ccc", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte([]byte("static-ccc")))
+		w.Write([]byte("static-ccc"))
 	})
 
-	p := &Pattern{
-		Reqests: []*Reqest{
+	if err := do(r,
+		[]*Want{
 			{"/users/aaa", 200, "static-aaa"},
 			{"/users/bbb", 200, "param-bbb"},
 			{"/users/ccc", 200, "static-ccc"},
 			{"/users/ccc/ddd", 404, BodyNotFound},
 		},
-
-		Server: httptest.NewServer(r),
+	); err != nil {
+		t.Fatal(err)
 	}
-
-	defer p.Close()
-	p.Do(t)
 }
 
 func TestMuxRouting5(t *testing.T) {
 	r := NewRouter()
-
 	r.Get("/aaa", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte([]byte("static-aaa")))
+		w.Write([]byte("static-aaa"))
 	})
 	r.Get("/:name", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte([]byte("param-" + URLParam(r, "name"))))
+		w.Write([]byte("param-" + URLParam(r, "name")))
 	})
 	r.Get("/aaa/*", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte([]byte("*")))
+		w.Write([]byte("*"))
 	})
 
-	p := &Pattern{
-		Reqests: []*Reqest{
+	if err := do(r,
+		[]*Want{
 			{"/aaa", 200, "static-aaa"},
 			{"/bbb", 200, "param-bbb"},
 			{"/aaa/ddd", 200, "*"},
 		},
-
-		Server: httptest.NewServer(r),
+	); err != nil {
+		t.Fatal(err)
 	}
-
-	defer p.Close()
-	p.Do(t)
 }
 
 func TestMuxRouting6(t *testing.T) {
 	r := NewRouter()
-
 	r.Get("/aaa", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte([]byte("aaa")))
+		w.Write([]byte("aaa"))
 	})
 	r.Get("/:name/bbb", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte([]byte(URLParam(r, "name"))))
+		w.Write([]byte(URLParam(r, "name")))
 	})
 	r.Get("/aaa/*", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte([]byte("*")))
+		w.Write([]byte("*"))
 	})
 	r.Get("/aaa/*/ddd", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte([]byte("*2")))
+		w.Write([]byte("*2"))
 	})
 
-	p := &Pattern{
-		Reqests: []*Reqest{
+	if err := do(r,
+		[]*Want{
 			{"/aaa", 200, "aaa"},
 			{"/bbb/bbb", 200, "bbb"},
 			{"/aaa/ccc", 200, "*"},
@@ -295,38 +268,34 @@ func TestMuxRouting6(t *testing.T) {
 			{"/aaa/bbb/ccc/ddd", 200, "*"},
 			{"/a", 404, BodyNotFound},
 		},
-
-		Server: httptest.NewServer(r),
+	); err != nil {
+		t.Fatal(err)
 	}
-
-	defer p.Close()
-	p.Do(t)
 }
 
 func TestMuxRouting7(t *testing.T) {
 	r := NewRouter()
-
 	r.Get("/a/b/c", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte([]byte("/a/b/c")))
+		w.Write([]byte("/a/b/c"))
 	})
 	r.Get("/a/b/:c", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte([]byte(fmt.Sprintf("/a/b/:c %s", URLParam(r, "c")))))
+		w.Write([]byte(fmt.Sprintf("/a/b/:c %s", URLParam(r, "c"))))
 	})
 	r.Get("/a/:b/c", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte([]byte(fmt.Sprintf("/a/:b/c %s", URLParam(r, "b")))))
+		w.Write([]byte(fmt.Sprintf("/a/:b/c %s", URLParam(r, "b"))))
 	})
 	r.Get("/a/:b/:c", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte([]byte(fmt.Sprintf("/a/:b/:c %s %s", URLParam(r, "b"), URLParam(r, "c")))))
+		w.Write([]byte(fmt.Sprintf("/a/:b/:c %s %s", URLParam(r, "b"), URLParam(r, "c"))))
 	})
 	r.Get("/:a/b/c", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte([]byte(fmt.Sprintf("/:a/b/c %s", URLParam(r, "a")))))
+		w.Write([]byte(fmt.Sprintf("/:a/b/c %s", URLParam(r, "a"))))
 	})
 	r.Get("/:a/:b/:c", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte([]byte(fmt.Sprintf("/:a/:b/:c %s %s %s", URLParam(r, "a"), URLParam(r, "b"), URLParam(r, "c")))))
+		w.Write([]byte(fmt.Sprintf("/:a/:b/:c %s %s %s", URLParam(r, "a"), URLParam(r, "b"), URLParam(r, "c"))))
 	})
 
-	p := &Pattern{
-		Reqests: []*Reqest{
+	if err := do(r,
+		[]*Want{
 			{"/a/b/c", 200, "/a/b/c"},
 			{"/a/b/ccc", 200, "/a/b/:c ccc"},
 			{"/a/bbb/c", 200, "/a/:b/c bbb"},
@@ -334,86 +303,70 @@ func TestMuxRouting7(t *testing.T) {
 			{"/aaa/b/c", 200, "/:a/b/c aaa"},
 			{"/aaa/bbb/ccc", 200, "/:a/:b/:c aaa bbb ccc"},
 		},
-
-		Server: httptest.NewServer(r),
+	); err != nil {
+		t.Fatal(err)
 	}
-
-	defer p.Close()
-	p.Do(t)
 }
 
 func TestMuxRouting8(t *testing.T) {
 	r := NewRouter()
-
 	r.Get("/a/:b/c", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte([]byte(fmt.Sprintf("/a/:b/c %s", URLParam(r, "b")))))
+		w.Write([]byte(fmt.Sprintf("/a/:b/c %s", URLParam(r, "b"))))
 	})
 	r.Get("/a/:bb/cc", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte([]byte(fmt.Sprintf("/a/:bb/cc %s", URLParam(r, "bb")))))
+		w.Write([]byte(fmt.Sprintf("/a/:bb/cc %s", URLParam(r, "bb"))))
 	})
 
-	p := &Pattern{
-		Reqests: []*Reqest{
+	if err := do(r,
+		[]*Want{
 			{"/a/b/c", 200, "/a/:b/c b"},
 			{"/a/bb/cc", 200, "/a/:bb/cc bb"},
 		},
-
-		Server: httptest.NewServer(r),
+	); err != nil {
+		t.Fatal(err)
 	}
-
-	defer p.Close()
-	p.Do(t)
 }
 
 func TestMuxRoutingOverride(t *testing.T) {
 	r := NewRouter()
-
 	r.Get("/aaa", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte([]byte("aaa")))
+		w.Write([]byte("aaa"))
 	})
 	r.Get("/aaa", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte([]byte("aaa-override")))
+		w.Write([]byte("aaa-override"))
 	})
 	r.Get("/aaa/:name", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte([]byte("aaa-" + URLParam(r, "name"))))
+		w.Write([]byte("aaa-" + URLParam(r, "name")))
 	})
 	r.Get("/aaa/:name", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte([]byte("aaa-override-" + URLParam(r, "name"))))
+		w.Write([]byte("aaa-override-" + URLParam(r, "name")))
 	})
 
-	p := &Pattern{
-		Reqests: []*Reqest{
+	if err := do(r,
+		[]*Want{
 			{"/aaa", 200, "aaa-override"},
 			{"/aaa/bbb", 200, "aaa-override-bbb"},
 		},
-
-		Server: httptest.NewServer(r),
+	); err != nil {
+		t.Fatal(err)
 	}
-
-	defer p.Close()
-	p.Do(t)
 }
 
 func TestMuxMiddleware(t *testing.T) {
 	r := NewRouter()
-
 	r.Use(WriteMiddleware("M"))
-
 	r.Get("/users/:name", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte([]byte(URLParam(r, "name"))))
+		w.Write([]byte(URLParam(r, "name")))
 	},
 		WriteMiddleware("M"),
 	)
 
-	p := &Pattern{
-		Reqests: []*Reqest{
+	if err := do(r,
+		[]*Want{
 			{"/users/a", 200, "MMa"},
 			{"/users/b", 200, "MMb"},
 		},
-
-		Server: httptest.NewServer(r),
+	); err != nil {
+		t.Fatal(err)
 	}
-
-	defer p.Close()
-	p.Do(t)
 }

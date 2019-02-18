@@ -3,7 +3,6 @@ package bon
 import (
 	"context"
 	"net/http"
-	"net/http/httptest"
 	"testing"
 )
 
@@ -64,17 +63,14 @@ func TestContext(t *testing.T) {
 		w.Write([]byte(a.value + b.value + URLParam(r, "vv")))
 	})
 
-	p := &Pattern{
-		Reqests: []*Reqest{
+	if err := do(r,
+		[]*Want{
 			{"/context1", 200, "AAA"},
 			{"/context2/bbb", 200, "AAAbbb"},
 			{"/context3/ccc", 200, "AAABBBccc"},
 			{"/context4/fff", 200, "DDDEEEfff"},
 		},
-
-		Server: httptest.NewServer(r),
+	); err != nil {
+		t.Fatal(err)
 	}
-
-	defer p.Close()
-	p.Do(t)
 }

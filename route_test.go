@@ -8,8 +8,8 @@ import (
 
 func TestRouteMethods(t *testing.T) {
 	r := NewRouter()
-	ro := r.Route()
 
+	ro := r.Route()
 	ro.Get(http.MethodGet, func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(http.MethodGet))
 	})
@@ -60,15 +60,12 @@ func TestRouteMiddleware(t *testing.T) {
 		w.Write([]byte("b"))
 	})
 
-	p := &Pattern{
-		Reqests: []*Reqest{
+	if err := do(r,
+		[]*Want{
 			{"/a", 200, "Aa"},
 			{"/b", 200, "b"},
 		},
-
-		Server: httptest.NewServer(r),
+	); err != nil {
+		t.Fatal(err)
 	}
-
-	defer p.Close()
-	p.Do(t)
 }
