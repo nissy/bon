@@ -2,9 +2,7 @@ package bon
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -18,7 +16,7 @@ type Want struct {
 	Body       string
 }
 
-func do(h http.Handler, ws []*Want) error {
+func Verify(h http.Handler, ws []*Want) error {
 	sv := httptest.NewServer(h)
 	defer sv.Close()
 
@@ -58,85 +56,13 @@ func WriteMiddleware(v string) func(next http.Handler) http.Handler {
 	}
 }
 
-func Methods(sv *httptest.Server, prefix string) error {
-	for _, v := range []string{http.MethodGet, http.MethodHead, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodConnect, http.MethodOptions, http.MethodTrace} {
-		req, err := http.NewRequest(v, fmt.Sprintf("%s/%s%s", sv.URL, prefix, v), nil)
-
-		if err != nil {
-			return err
-		}
-
-		res, err := http.DefaultClient.Do(req)
-
-		if err != nil {
-			return err
-		}
-
-		if res.StatusCode != http.StatusOK {
-			return errors.New(fmt.Sprintf("Method=%q, StatusCode=%d", v, res.StatusCode))
-		}
-
-		body, err := ioutil.ReadAll(res.Body)
-
-		if err != nil {
-			return err
-		}
-
-		if v != http.MethodHead && string(body) != v {
-			return errors.New(fmt.Sprintf("Method=%q, Body=%s", v, string(body)))
-		}
-	}
-
-	return nil
-}
-
-func TestMuxMethods(t *testing.T) {
-	r := NewRouter()
-
-	r.Get(http.MethodGet, func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(http.MethodGet))
-	})
-	r.Head(http.MethodHead, func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(http.MethodHead))
-	})
-	r.Post(http.MethodPost, func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(http.MethodPost))
-	})
-	r.Put(http.MethodPut, func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(http.MethodPut))
-	})
-	r.Patch(http.MethodPatch, func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(http.MethodPatch))
-	})
-	r.Delete(http.MethodDelete, func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(http.MethodDelete))
-	})
-	r.Connect(http.MethodConnect, func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(http.MethodConnect))
-	})
-	r.Options(http.MethodOptions, func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(http.MethodOptions))
-	})
-	r.Trace(http.MethodTrace, func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(http.MethodTrace))
-	})
-
-	sv := httptest.NewServer(r)
-
-	if err := Methods(sv, ""); err != nil {
-		t.Fatalf(err.Error())
-	}
-
-	defer sv.Close()
-}
-
 func TestMuxRouting1(t *testing.T) {
 	r := NewRouter()
 	r.Get("/users/:name", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(URLParam(r, "name")))
 	})
 
-	if err := do(r,
+	if err := Verify(r,
 		[]*Want{
 			{"/users/aaa", 200, "aaa"},
 			{"/users/bbb", 200, "bbb"},
@@ -156,7 +82,7 @@ func TestMuxRouting2(t *testing.T) {
 		w.Write([]byte(URLParam(r, "name") + "ccc"))
 	})
 
-	if err := do(r,
+	if err := Verify(r,
 		[]*Want{
 			{"/users/aaa", 200, "aaa"},
 			{"/users/bbb/ccc", 200, "bbbccc"},
@@ -183,7 +109,7 @@ func TestMuxRouting3(t *testing.T) {
 		w.Write([]byte("*2"))
 	})
 
-	if err := do(r,
+	if err := Verify(r,
 		[]*Want{
 			{"/users/aaa", 200, "aaa"},
 			{"/users/bbb/ccc", 200, "bbbccc"},
@@ -209,7 +135,7 @@ func TestMuxRouting4(t *testing.T) {
 		w.Write([]byte("static-ccc"))
 	})
 
-	if err := do(r,
+	if err := Verify(r,
 		[]*Want{
 			{"/users/aaa", 200, "static-aaa"},
 			{"/users/bbb", 200, "param-bbb"},
@@ -233,7 +159,7 @@ func TestMuxRouting5(t *testing.T) {
 		w.Write([]byte("*"))
 	})
 
-	if err := do(r,
+	if err := Verify(r,
 		[]*Want{
 			{"/aaa", 200, "static-aaa"},
 			{"/bbb", 200, "param-bbb"},
@@ -259,7 +185,7 @@ func TestMuxRouting6(t *testing.T) {
 		w.Write([]byte("*2"))
 	})
 
-	if err := do(r,
+	if err := Verify(r,
 		[]*Want{
 			{"/aaa", 200, "aaa"},
 			{"/bbb/bbb", 200, "bbb"},
@@ -294,7 +220,7 @@ func TestMuxRouting7(t *testing.T) {
 		w.Write([]byte(fmt.Sprintf("/:a/:b/:c %s %s %s", URLParam(r, "a"), URLParam(r, "b"), URLParam(r, "c"))))
 	})
 
-	if err := do(r,
+	if err := Verify(r,
 		[]*Want{
 			{"/a/b/c", 200, "/a/b/c"},
 			{"/a/b/ccc", 200, "/a/b/:c ccc"},
@@ -317,7 +243,7 @@ func TestMuxRouting8(t *testing.T) {
 		w.Write([]byte(fmt.Sprintf("/a/:bb/cc %s", URLParam(r, "bb"))))
 	})
 
-	if err := do(r,
+	if err := Verify(r,
 		[]*Want{
 			{"/a/b/c", 200, "/a/:b/c b"},
 			{"/a/bb/cc", 200, "/a/:bb/cc bb"},
@@ -342,7 +268,7 @@ func TestMuxRoutingOverride(t *testing.T) {
 		w.Write([]byte("aaa-override-" + URLParam(r, "name")))
 	})
 
-	if err := do(r,
+	if err := Verify(r,
 		[]*Want{
 			{"/aaa", 200, "aaa-override"},
 			{"/aaa/bbb", 200, "aaa-override-bbb"},
@@ -361,7 +287,7 @@ func TestMuxMiddleware(t *testing.T) {
 		WriteMiddleware("M"),
 	)
 
-	if err := do(r,
+	if err := Verify(r,
 		[]*Want{
 			{"/users/a", 200, "MMa"},
 			{"/users/b", 200, "MMb"},

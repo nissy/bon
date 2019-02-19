@@ -63,7 +63,7 @@ func TestContext(t *testing.T) {
 		w.Write([]byte(a.value + b.value + URLParam(r, "vv")))
 	})
 
-	if err := do(r,
+	if err := Verify(r,
 		[]*Want{
 			{"/context1", 200, "AAA"},
 			{"/context2/bbb", 200, "AAAbbb"},
