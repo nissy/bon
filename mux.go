@@ -145,16 +145,16 @@ func (m *Mux) Trace(pattern string, handlerFunc http.HandlerFunc, middlewares ..
 	m.Handle(http.MethodTrace, pattern, handlerFunc, append(m.middlewares, middlewares...)...)
 }
 
-func (m *Mux) FileServer(pattern, dir string) {
-	if !isStaticPattern(pattern) {
+func (m *Mux) FileServer(path, dir string, middlewares ...Middleware) {
+	if !isStaticPattern(path) {
 		panic("It is not a static pattern")
 	}
 
-	if pattern[len(pattern)-1] != '/' {
-		pattern += "/"
+	if path[len(path)-1] != '/' {
+		path += "/"
 	}
 
-	m.Handle(http.MethodGet, pattern+"*", http.StripPrefix(pattern, http.FileServer(http.Dir(dir))))
+	m.Handle(http.MethodGet, path+"*", http.StripPrefix(path, http.FileServer(http.Dir(dir))), append(m.middlewares, middlewares...)...)
 }
 
 func (m *Mux) Handle(method, pattern string, handler http.Handler, middlewares ...Middleware) {
