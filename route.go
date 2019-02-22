@@ -11,7 +11,7 @@ func (r *Route) Group(pattern string, middlewares ...Middleware) *Group {
 	return &Group{
 		mux:         r.mux,
 		middlewares: append(r.middlewares, middlewares...),
-		prefix:      compensatePattern(pattern),
+		prefix:      resolvePattern(pattern),
 	}
 }
 
