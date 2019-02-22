@@ -151,11 +151,10 @@ func (m *Mux) FileServer(pattern, root string, middlewares ...Middleware) {
 	}
 
 	h := m.newFileServer(pattern, root).content
-	ms := append(m.middlewares, middlewares...)
-	m.Get(pattern, h, ms...)
-	m.Get(pattern+"*", h, ms...)
-	m.Head(pattern, h, ms...)
-	m.Head(pattern+"*", h, ms...)
+	m.Get(pattern, h, middlewares...)
+	m.Get(pattern+"*", h, middlewares...)
+	m.Head(pattern, h, middlewares...)
+	m.Head(pattern+"*", h, middlewares...)
 }
 
 func (m *Mux) Handle(method, pattern string, handler http.Handler, middlewares ...Middleware) {

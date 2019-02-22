@@ -65,3 +65,15 @@ func (r *Route) Trace(pattern string, handlerFunc http.HandlerFunc, middlewares 
 func (r *Route) Handle(method, pattern string, handler http.Handler, middlewares ...Middleware) {
 	r.mux.Handle(method, pattern, handler, append(r.middlewares, middlewares...)...)
 }
+
+func (r *Route) FileServer(pattern, root string, middlewares ...Middleware) {
+	if pattern[len(pattern)-1] != '/' {
+		pattern = resolvePattern(pattern) + "/"
+	}
+
+	h := r.mux.newFileServer(pattern, root).content
+	r.Get(pattern, h, middlewares...)
+	r.Get(pattern+"*", h, middlewares...)
+	r.Head(pattern, h, middlewares...)
+	r.Head(pattern+"*", h, middlewares...)
+}
