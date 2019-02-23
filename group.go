@@ -68,13 +68,5 @@ func (g *Group) Handle(method, pattern string, handler http.Handler, middlewares
 }
 
 func (g *Group) FileServer(pattern, root string, middlewares ...Middleware) {
-	if pattern[len(pattern)-1] != '/' {
-		pattern = resolvePattern(pattern) + "/"
-	}
-
-	h := g.mux.newFileServer(pattern, root).content
-	g.Get(pattern, h, middlewares...)
-	g.Get(pattern+"*", h, middlewares...)
-	g.Head(pattern, h, middlewares...)
-	g.Head(pattern+"*", h, middlewares...)
+	contentsHandle(g, pattern, g.mux.newFileServer(pattern, root, measureDepth(g.prefix+resolvePattern(pattern))).contents, middlewares...)
 }

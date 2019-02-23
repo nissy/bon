@@ -10,16 +10,34 @@ import (
 
 type fileServer struct {
 	mux      *Mux
-	class    int
+	depth    int
 	root     string
 	dirIndex string
 }
 
-func (m *Mux) newFileServer(pattern, root string) *fileServer {
+func measureDepth(pattern string) int {
+	if pattern[len(pattern)-1] != '/' {
+		pattern = resolvePattern(pattern) + "/"
+	}
+
+	return strings.Count(pattern, "/")
+}
+
+func contentsHandle(r Router, pattern string, handlerFunc http.HandlerFunc, middlewares ...Middleware) {
+	if pattern[len(pattern)-1] != '/' {
+		pattern = resolvePattern(pattern) + "/"
+	}
+	r.Handle(http.MethodGet, pattern, handlerFunc, middlewares...)
+	r.Handle(http.MethodGet, pattern+"*", handlerFunc, middlewares...)
+	r.Handle(http.MethodHead, pattern, handlerFunc, middlewares...)
+	r.Handle(http.MethodHead, pattern+"*", handlerFunc, middlewares...)
+}
+
+func (m *Mux) newFileServer(pattern, root string, depth int) *fileServer {
 	return &fileServer{
 		mux:      m,
 		root:     root,
-		class:    strings.Count(pattern, "/"),
+		depth:    depth,
 		dirIndex: "index.html",
 	}
 }
@@ -29,7 +47,7 @@ func (fs *fileServer) resolveRequestFile(v string) string {
 	for ; i < len(v); i++ {
 		if v[i] == '/' {
 			s++
-			if fs.class == s {
+			if fs.depth == s {
 				break
 			}
 		}
@@ -38,7 +56,7 @@ func (fs *fileServer) resolveRequestFile(v string) string {
 	return path.Join(fs.root, v[i:])
 }
 
-func (fs *fileServer) content(w http.ResponseWriter, r *http.Request) {
+func (fs *fileServer) contents(w http.ResponseWriter, r *http.Request) {
 	file := fs.resolveRequestFile(r.URL.Path)
 	f, err := os.Open(file)
 	if err != nil {

@@ -67,13 +67,5 @@ func (r *Route) Handle(method, pattern string, handler http.Handler, middlewares
 }
 
 func (r *Route) FileServer(pattern, root string, middlewares ...Middleware) {
-	if pattern[len(pattern)-1] != '/' {
-		pattern = resolvePattern(pattern) + "/"
-	}
-
-	h := r.mux.newFileServer(pattern, root).content
-	r.Get(pattern, h, middlewares...)
-	r.Get(pattern+"*", h, middlewares...)
-	r.Head(pattern, h, middlewares...)
-	r.Head(pattern+"*", h, middlewares...)
+	contentsHandle(r, pattern, r.mux.newFileServer(pattern, root, measureDepth(pattern)).contents, middlewares...)
 }
