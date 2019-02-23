@@ -12,7 +12,7 @@ func (g *Group) Group(pattern string, middlewares ...Middleware) *Group {
 	return &Group{
 		mux:         g.mux,
 		middlewares: append(g.middlewares, middlewares...),
-		prefix:      g.prefix + compensatePattern(pattern),
+		prefix:      g.prefix + resolvePattern(pattern),
 	}
 }
 
@@ -64,5 +64,9 @@ func (g *Group) Trace(pattern string, handlerFunc http.HandlerFunc, middlewares 
 }
 
 func (g *Group) Handle(method, pattern string, handler http.Handler, middlewares ...Middleware) {
-	g.mux.Handle(method, g.prefix+compensatePattern(pattern), handler, append(g.middlewares, middlewares...)...)
+	g.mux.Handle(method, g.prefix+resolvePattern(pattern), handler, append(g.middlewares, middlewares...)...)
+}
+
+func (g *Group) FileServer(pattern, root string, middlewares ...Middleware) {
+	contentsHandle(g, pattern, g.mux.newFileServer(pattern, root, measureDepth(g.prefix+resolvePattern(pattern))).contents, middlewares...)
 }

@@ -80,7 +80,7 @@ func isStaticPattern(pattern string) bool {
 	return true
 }
 
-func compensatePattern(pattern string) string {
+func resolvePattern(pattern string) string {
 	if len(pattern) > 0 {
 		if pattern[0] != '/' {
 			return "/" + pattern
@@ -94,7 +94,7 @@ func (m *Mux) Group(pattern string, middlewares ...Middleware) *Group {
 	return &Group{
 		mux:         m,
 		middlewares: append(m.middlewares, middlewares...),
-		prefix:      compensatePattern(pattern),
+		prefix:      resolvePattern(pattern),
 	}
 }
 
@@ -145,16 +145,8 @@ func (m *Mux) Trace(pattern string, handlerFunc http.HandlerFunc, middlewares ..
 	m.Handle(http.MethodTrace, pattern, handlerFunc, append(m.middlewares, middlewares...)...)
 }
 
-func (m *Mux) FileServer(path, dir string, middlewares ...Middleware) {
-	if !isStaticPattern(path) {
-		panic("It is not a static pattern")
-	}
-
-	if path[len(path)-1] != '/' {
-		path += "/"
-	}
-
-	m.Handle(http.MethodGet, path+"*", http.StripPrefix(path, http.FileServer(http.Dir(dir))), append(m.middlewares, middlewares...)...)
+func (m *Mux) FileServer(pattern, root string, middlewares ...Middleware) {
+	contentsHandle(m, pattern, m.newFileServer(pattern, root, measureDepth(pattern)).contents, append(m.middlewares, middlewares...)...)
 }
 
 func (m *Mux) Handle(method, pattern string, handler http.Handler, middlewares ...Middleware) {
@@ -163,8 +155,7 @@ func (m *Mux) Handle(method, pattern string, handler http.Handler, middlewares .
 		parent = m.tree.newChild(newNode(), method)
 	}
 
-	pattern = compensatePattern(pattern)
-
+	pattern = resolvePattern(pattern)
 	if isStaticPattern(pattern) {
 		child, ok := parent.children[pattern]
 		if !ok {

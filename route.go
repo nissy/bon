@@ -11,7 +11,7 @@ func (r *Route) Group(pattern string, middlewares ...Middleware) *Group {
 	return &Group{
 		mux:         r.mux,
 		middlewares: append(r.middlewares, middlewares...),
-		prefix:      compensatePattern(pattern),
+		prefix:      resolvePattern(pattern),
 	}
 }
 
@@ -64,4 +64,8 @@ func (r *Route) Trace(pattern string, handlerFunc http.HandlerFunc, middlewares 
 
 func (r *Route) Handle(method, pattern string, handler http.Handler, middlewares ...Middleware) {
 	r.mux.Handle(method, pattern, handler, append(r.middlewares, middlewares...)...)
+}
+
+func (r *Route) FileServer(pattern, root string, middlewares ...Middleware) {
+	contentsHandle(r, pattern, r.mux.newFileServer(pattern, root, measureDepth(pattern)).contents, middlewares...)
 }
