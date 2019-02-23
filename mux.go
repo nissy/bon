@@ -70,9 +70,9 @@ func (n *node) newChild(child *node, edge string) *node {
 	return child
 }
 
-func isStaticPattern(pattern string) bool {
-	for i := 0; i < len(pattern); i++ {
-		if pattern[i] == ':' || pattern[i] == '*' {
+func isStaticPattern(v string) bool {
+	for i := 0; i < len(v); i++ {
+		if v[i] == ':' || v[i] == '*' {
 			return false
 		}
 	}
@@ -80,21 +80,35 @@ func isStaticPattern(pattern string) bool {
 	return true
 }
 
-func resolvePattern(pattern string) string {
-	if len(pattern) > 0 {
-		if pattern[0] != '/' {
-			return "/" + pattern
+func resolvePattern(v string) string {
+	return resolvePatternSuffix(resolvePatternPrefix(v))
+}
+
+func resolvePatternPrefix(v string) string {
+	if len(v) > 0 {
+		if v[0] != '/' {
+			return "/" + v
 		}
 	}
 
-	return pattern
+	return v
+}
+
+func resolvePatternSuffix(v string) string {
+	if len(v) > 0 {
+		if v[len(v)-1] != '/' {
+			return v + "/"
+		}
+	}
+
+	return v
 }
 
 func (m *Mux) Group(pattern string, middlewares ...Middleware) *Group {
 	return &Group{
 		mux:         m,
 		middlewares: append(m.middlewares, middlewares...),
-		prefix:      resolvePattern(pattern),
+		prefix:      resolvePatternPrefix(pattern),
 	}
 }
 
@@ -155,7 +169,7 @@ func (m *Mux) Handle(method, pattern string, handler http.Handler, middlewares .
 		parent = m.tree.newChild(newNode(), method)
 	}
 
-	pattern = resolvePattern(pattern)
+	pattern = resolvePatternPrefix(pattern)
 	if isStaticPattern(pattern) {
 		child, ok := parent.children[pattern]
 		if !ok {

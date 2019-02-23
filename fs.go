@@ -14,18 +14,12 @@ type fileServer struct {
 	dirIndex string
 }
 
-func dirDepth(pattern string) int {
-	if pattern[len(pattern)-1] != '/' {
-		pattern = resolvePattern(pattern) + "/"
-	}
-
-	return strings.Count(pattern, "/")
+func dirDepth(v string) int {
+	return strings.Count(resolvePattern(v), "/")
 }
 
 func contentsHandle(r Router, pattern string, handlerFunc http.HandlerFunc, middlewares ...Middleware) {
-	if pattern[len(pattern)-1] != '/' {
-		pattern = resolvePattern(pattern) + "/"
-	}
+	pattern = resolvePattern(pattern)
 	r.Handle(http.MethodGet, pattern, handlerFunc, middlewares...)
 	r.Handle(http.MethodGet, pattern+"*", handlerFunc, middlewares...)
 	r.Handle(http.MethodHead, pattern, handlerFunc, middlewares...)
