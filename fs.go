@@ -3,7 +3,6 @@ package bon
 import (
 	"net/http"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 )
@@ -15,7 +14,7 @@ type fileServer struct {
 	dirIndex string
 }
 
-func measureDepth(pattern string) int {
+func dirDepth(pattern string) int {
 	if pattern[len(pattern)-1] != '/' {
 		pattern = resolvePattern(pattern) + "/"
 	}
@@ -42,7 +41,7 @@ func (m *Mux) newFileServer(pattern, root string, depth int) *fileServer {
 	}
 }
 
-func (fs *fileServer) resolveRequestFile(v string) string {
+func (fs *fileServer) resolveFilePath(v string) string {
 	var s, i int
 	for ; i < len(v); i++ {
 		if v[i] == '/' {
@@ -53,11 +52,11 @@ func (fs *fileServer) resolveRequestFile(v string) string {
 		}
 	}
 
-	return path.Join(fs.root, v[i:])
+	return filepath.Join(fs.root, v[i:])
 }
 
 func (fs *fileServer) contents(w http.ResponseWriter, r *http.Request) {
-	file := fs.resolveRequestFile(r.URL.Path)
+	file := fs.resolveFilePath(r.URL.Path)
 	f, err := os.Open(file)
 	if err != nil {
 		fs.mux.NotFound(w, r)
