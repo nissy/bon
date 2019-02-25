@@ -20,10 +20,10 @@ func dirDepth(v string) int {
 
 func contentsHandle(r Router, pattern string, handlerFunc http.HandlerFunc, middlewares ...Middleware) {
 	pattern = resolvePattern(pattern)
-	r.Handle(http.MethodGet, pattern, handlerFunc, middlewares...)
-	r.Handle(http.MethodGet, pattern+"*", handlerFunc, middlewares...)
-	r.Handle(http.MethodHead, pattern, handlerFunc, middlewares...)
-	r.Handle(http.MethodHead, pattern+"*", handlerFunc, middlewares...)
+	for _, v := range []string{pattern, pattern + "*"} {
+		r.Handle(http.MethodGet, v, handlerFunc, middlewares...)
+		r.Handle(http.MethodHead, v, handlerFunc, middlewares...)
+	}
 }
 
 func (m *Mux) newFileServer(pattern, root string, depth int) *fileServer {
