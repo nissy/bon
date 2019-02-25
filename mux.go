@@ -1,6 +1,7 @@
 package bon
 
 import (
+	"fmt"
 	"net/http"
 	"sync"
 )
@@ -197,7 +198,7 @@ func (m *Mux) Handle(method, pattern string, handler http.Handler, middlewares .
 		for ; i < len(pattern); i++ {
 			if si < ei {
 				if pattern[i] == ':' || pattern[i] == '*' {
-					panic("Parameter are not first")
+					panic(fmt.Sprintf("bon: parameter %c should at the beginning %s", pattern[i], pattern))
 				}
 			}
 
