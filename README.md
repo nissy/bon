@@ -98,7 +98,7 @@ func main() {
 		}),
 	)
 	admin.Get("/users/:name", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("Hallo, admin " + bon.URLParam(r, "name")))
+		w.Write([]byte("Hallo, " + bon.URLParam(r, "name")))
 	})
 
 	http.ListenAndServe(":8080", r)
