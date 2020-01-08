@@ -14,23 +14,19 @@ type fileServer struct {
 	dirIndex string
 }
 
-func dirDepth(v string) int {
-	return strings.Count(resolvePattern(v), "/")
-}
-
 func contentsHandle(r Router, pattern string, handlerFunc http.HandlerFunc, middlewares ...Middleware) {
-	pattern = resolvePattern(pattern)
-	for _, v := range []string{pattern, pattern + "*"} {
+	p := resolvePattern(pattern)
+	for _, v := range []string{p, p + "*"} {
 		r.Handle(http.MethodGet, v, handlerFunc, middlewares...)
 		r.Handle(http.MethodHead, v, handlerFunc, middlewares...)
 	}
 }
 
-func (m *Mux) newFileServer(pattern, root string, depth int) *fileServer {
+func (m *Mux) newFileServer(pattern, root string) *fileServer {
 	return &fileServer{
 		mux:      m,
 		root:     root,
-		depth:    depth,
+		depth:    strings.Count(resolvePattern(pattern), "/"),
 		dirIndex: "index.html",
 	}
 }

@@ -161,7 +161,7 @@ func (m *Mux) Trace(pattern string, handlerFunc http.HandlerFunc, middlewares ..
 }
 
 func (m *Mux) FileServer(pattern, root string, middlewares ...Middleware) {
-	contentsHandle(m, pattern, m.newFileServer(pattern, root, dirDepth(pattern)).contents, append(m.middlewares, middlewares...)...)
+	contentsHandle(m, pattern, m.newFileServer(pattern, root).contents, append(m.middlewares, middlewares...)...)
 }
 
 func (m *Mux) Handle(method, pattern string, handler http.Handler, middlewares ...Middleware) {
