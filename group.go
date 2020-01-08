@@ -68,5 +68,6 @@ func (g *Group) Handle(method, pattern string, handler http.Handler, middlewares
 }
 
 func (g *Group) FileServer(pattern, root string, middlewares ...Middleware) {
-	contentsHandle(g, pattern, g.mux.newFileServer(pattern, root, dirDepth(g.prefix+resolvePatternPrefix(pattern))).contents, middlewares...)
+	p := g.prefix + resolvePatternPrefix(pattern)
+	contentsHandle(g, p, g.mux.newFileServer(p, root).contents, middlewares...)
 }

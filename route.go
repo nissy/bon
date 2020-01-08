@@ -67,5 +67,5 @@ func (r *Route) Handle(method, pattern string, handler http.Handler, middlewares
 }
 
 func (r *Route) FileServer(pattern, root string, middlewares ...Middleware) {
-	contentsHandle(r, pattern, r.mux.newFileServer(pattern, root, dirDepth(pattern)).contents, middlewares...)
+	contentsHandle(r, pattern, r.mux.newFileServer(pattern, root).contents, middlewares...)
 }
