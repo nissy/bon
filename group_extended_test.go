@@ -192,8 +192,8 @@ func TestGroupWithRoute(t *testing.T) {
 
 	if err := Verify(r, []*Want{
 		{"/group/normal", 200, "GROUP-NORMAL"},
-		{"/isolated", 200, "ISOLATED"},
-		{"/route-mw", 200, "ROUTE-ROUTE"},
+		{"/group/isolated", 200, "ISOLATED"},
+		{"/group/route-mw", 200, "ROUTE-ROUTE"},
 	}); err != nil {
 		t.Fatal(err)
 	}

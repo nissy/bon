@@ -51,15 +51,27 @@ func (fs *fileServer) resolveFilePath(v string) (string, error) {
 		}
 	}
 
-	// パスをクリーンアップして正規化
-	cleanPath := filepath.Clean(v[i:])
+	// パスを正規化（先頭のスラッシュを削除）
+	requestPath := v[i:]
+	if requestPath != "" && requestPath[0] == '/' {
+		requestPath = requestPath[1:]
+	}
 	
-	// ディレクトリトラバーサルのチェック
-	if strings.Contains(cleanPath, "..") {
+	// パストラバーサル攻撃の基本チェック
+	// 1. ".." を含むパスを拒否
+	// 2. "." で始まるファイル（隠しファイル）へのアクセスを拒否
+	// 3. null文字を含むパスを拒否
+	if strings.Contains(requestPath, "..") || 
+	   strings.Contains(requestPath, "\x00") ||
+	   strings.HasPrefix(requestPath, ".") ||
+	   strings.Contains(requestPath, "/.") {
 		return "", os.ErrPermission
 	}
 	
-	// 絶対パスを構築
+	// パスをクリーンアップ
+	cleanPath := filepath.Clean(requestPath)
+	
+	// 絶対パスを構築（filepath.Joinを使用してセキュアに結合）
 	fullPath := filepath.Join(fs.root, cleanPath)
 	
 	// 絶対パスに変換
@@ -68,8 +80,10 @@ func (fs *fileServer) resolveFilePath(v string) (string, error) {
 		return "", err
 	}
 	
-	// パスがルートディレクトリ内にあることを確認（キャッシュされた絶対パスを使用）
-	if !strings.HasPrefix(absPath, fs.absRoot) {
+	// 最終的な安全性チェック：パスがルートディレクトリ内にあることを確認
+	// HasPrefixだけでなく、正確に比較
+	if !strings.HasPrefix(absPath, fs.absRoot) || 
+	   (len(absPath) > len(fs.absRoot) && absPath[len(fs.absRoot)] != filepath.Separator) {
 		return "", os.ErrPermission
 	}
 	
@@ -108,8 +122,15 @@ func (fs *fileServer) contents(w http.ResponseWriter, r *http.Request) {
 		// ディレクトリの場合、index.htmlを探す
 		indexPath := filepath.Join(file, fs.dirIndex)
 		
-		// インデックスファイルのパスも検証
-		if !strings.HasPrefix(indexPath, file) {
+		// インデックスファイルの絶対パスを取得して検証
+		indexAbsPath, err := filepath.Abs(indexPath)
+		if err != nil {
+			fs.mux.NotFound(w, r)
+			return
+		}
+		
+		// インデックスファイルがルートディレクトリ内にあることを確認
+		if !strings.HasPrefix(indexAbsPath, fs.absRoot) {
 			http.Error(w, "Forbidden", http.StatusForbidden)
 			return
 		}

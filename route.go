@@ -5,13 +5,14 @@ import "net/http"
 type Route struct {
 	mux         *Mux
 	middlewares []Middleware
+	prefix      string
 }
 
 func (r *Route) Group(pattern string, middlewares ...Middleware) *Group {
 	return &Group{
 		mux:         r.mux,
 		middlewares: append(r.middlewares, middlewares...),
-		prefix:      resolvePatternPrefix(pattern),
+		prefix:      r.prefix + resolvePatternPrefix(pattern),
 	}
 }
 
@@ -63,9 +64,10 @@ func (r *Route) Trace(pattern string, handlerFunc http.HandlerFunc, middlewares 
 }
 
 func (r *Route) Handle(method, pattern string, handler http.Handler, middlewares ...Middleware) {
-	r.mux.Handle(method, pattern, handler, append(r.middlewares, middlewares...)...)
+	r.mux.Handle(method, r.prefix+resolvePatternPrefix(pattern), handler, append(r.middlewares, middlewares...)...)
 }
 
 func (r *Route) FileServer(pattern, root string, middlewares ...Middleware) {
-	contentsHandle(r, pattern, r.mux.newFileServer(pattern, root).contents, middlewares...)
+	p := r.prefix + resolvePatternPrefix(pattern)
+	contentsHandle(r, p, r.mux.newFileServer(p, root).contents, middlewares...)
 }

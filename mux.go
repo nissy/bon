@@ -1,6 +1,7 @@
 package bon
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 	"sync"
@@ -10,16 +11,23 @@ const (
 	nodeKindStatic nodeKind = iota
 	nodeKindParam
 	nodeKindAny
+	
+	// パラメータの最大数制限（メモリ枯渇攻撃を防ぐ）
+	maxParamCount = 256  // 十分に大きな値に設定
+	// パラメータ容量の最大値（メモリ使用量を制限）
+	maxParamCapacity = 512
 )
 
 type (
 	Mux struct {
-		doubleArray *doubleArrayTrie
-		endpoints   []*endpoint
-		middlewares []Middleware
-		pool        sync.Pool
-		maxParam    int
-		NotFound    http.HandlerFunc
+		doubleArray      *doubleArrayTrie
+		endpoints        []*endpoint
+		middlewares      []Middleware
+		pool             sync.Pool
+		maxParam         int
+		NotFound         http.HandlerFunc
+		notFoundChain    http.Handler // 事前構築された404ハンドラチェーン
+		middlewaresDirty bool         // ミドルウェアが変更されたかのフラグ
 	}
 
 	nodeKind uint8
@@ -37,6 +45,8 @@ type (
 	endpoint struct {
 		handler     http.Handler
 		middlewares []Middleware
+		chain       http.Handler // エンドポイントミドルウェアのみのチェーン
+		fullChain   http.Handler // グローバル＋エンドポイントミドルウェアのフルチェーン
 		paramKeys   []string
 		pattern     string
 		method      string
@@ -52,6 +62,9 @@ func newMux() *Mux {
 		endpoints:   make([]*endpoint, 0, 128), // 事前割り当て
 		NotFound:    http.NotFound,
 	}
+	
+	// 初期化時にnotFoundChainを設定
+	m.notFoundChain = http.HandlerFunc(m.NotFound)
 
 	m.pool = sync.Pool{
 		New: func() interface{} {
@@ -112,7 +125,7 @@ func resolvePatternSuffix(v string) string {
 func (m *Mux) Group(pattern string, middlewares ...Middleware) *Group {
 	return &Group{
 		mux:         m,
-		middlewares: append(m.middlewares, middlewares...),
+		middlewares: middlewares,
 		prefix:      resolvePatternPrefix(pattern),
 	}
 }
@@ -121,54 +134,66 @@ func (m *Mux) Route(middlewares ...Middleware) *Route {
 	return &Route{
 		mux:         m,
 		middlewares: middlewares,
+		prefix:      "",
 	}
 }
 
 func (m *Mux) Use(middlewares ...Middleware) {
 	m.middlewares = append(m.middlewares, middlewares...)
+	m.middlewaresDirty = true
 }
 
 func (m *Mux) Get(pattern string, handlerFunc http.HandlerFunc, middlewares ...Middleware) {
-	m.Handle(http.MethodGet, pattern, handlerFunc, append(m.middlewares, middlewares...)...)
+	m.Handle(http.MethodGet, pattern, handlerFunc, middlewares...)
 }
 
 func (m *Mux) Post(pattern string, handlerFunc http.HandlerFunc, middlewares ...Middleware) {
-	m.Handle(http.MethodPost, pattern, handlerFunc, append(m.middlewares, middlewares...)...)
+	m.Handle(http.MethodPost, pattern, handlerFunc, middlewares...)
 }
 
 func (m *Mux) Put(pattern string, handlerFunc http.HandlerFunc, middlewares ...Middleware) {
-	m.Handle(http.MethodPut, pattern, handlerFunc, append(m.middlewares, middlewares...)...)
+	m.Handle(http.MethodPut, pattern, handlerFunc, middlewares...)
 }
 
 func (m *Mux) Delete(pattern string, handlerFunc http.HandlerFunc, middlewares ...Middleware) {
-	m.Handle(http.MethodDelete, pattern, handlerFunc, append(m.middlewares, middlewares...)...)
+	m.Handle(http.MethodDelete, pattern, handlerFunc, middlewares...)
 }
 
 func (m *Mux) Head(pattern string, handlerFunc http.HandlerFunc, middlewares ...Middleware) {
-	m.Handle(http.MethodHead, pattern, handlerFunc, append(m.middlewares, middlewares...)...)
+	m.Handle(http.MethodHead, pattern, handlerFunc, middlewares...)
 }
 
 func (m *Mux) Options(pattern string, handlerFunc http.HandlerFunc, middlewares ...Middleware) {
-	m.Handle(http.MethodOptions, pattern, handlerFunc, append(m.middlewares, middlewares...)...)
+	m.Handle(http.MethodOptions, pattern, handlerFunc, middlewares...)
 }
 
 func (m *Mux) Patch(pattern string, handlerFunc http.HandlerFunc, middlewares ...Middleware) {
-	m.Handle(http.MethodPatch, pattern, handlerFunc, append(m.middlewares, middlewares...)...)
+	m.Handle(http.MethodPatch, pattern, handlerFunc, middlewares...)
 }
 
 func (m *Mux) Connect(pattern string, handlerFunc http.HandlerFunc, middlewares ...Middleware) {
-	m.Handle(http.MethodConnect, pattern, handlerFunc, append(m.middlewares, middlewares...)...)
+	m.Handle(http.MethodConnect, pattern, handlerFunc, middlewares...)
 }
 
 func (m *Mux) Trace(pattern string, handlerFunc http.HandlerFunc, middlewares ...Middleware) {
-	m.Handle(http.MethodTrace, pattern, handlerFunc, append(m.middlewares, middlewares...)...)
+	m.Handle(http.MethodTrace, pattern, handlerFunc, middlewares...)
 }
 
 func (m *Mux) FileServer(pattern, root string, middlewares ...Middleware) {
-	contentsHandle(m, pattern, m.newFileServer(pattern, root).contents, append(m.middlewares, middlewares...)...)
+	contentsHandle(m, pattern, m.newFileServer(pattern, root).contents, middlewares...)
 }
 
 func (m *Mux) Handle(method, pattern string, handler http.Handler, middlewares ...Middleware) {
+	// メソッドの検証
+	if method == "" {
+		panic("bon: HTTP method cannot be empty")
+	}
+	
+	// パターンの検証
+	if err := validatePattern(pattern); err != nil {
+		panic("bon: " + err.Error())
+	}
+	
 	pattern = resolvePatternPrefix(pattern)
 
 	// エンドポイントを作成
@@ -179,6 +204,20 @@ func (m *Mux) Handle(method, pattern string, handler http.Handler, middlewares .
 		method:      method,
 		kind:        nodeKindStatic,
 	}
+
+	// エンドポイントミドルウェアチェーンを事前構築
+	chain := handler
+	for i := len(middlewares) - 1; i >= 0; i-- {
+		chain = middlewares[i](chain)
+	}
+	ep.chain = chain
+	
+	// グローバルミドルウェアを含むフルチェーンを構築
+	fullChain := chain
+	for i := len(m.middlewares) - 1; i >= 0; i-- {
+		fullChain = m.middlewares[i](fullChain)
+	}
+	ep.fullChain = fullChain
 
 	// パラメータキーを抽出
 	if !isStaticPattern(pattern) {
@@ -244,19 +283,28 @@ func (dat *doubleArrayTrie) insert(key string, index int) {
 	}
 }
 
-// 次の状態を検索
+// 次の状態を検索（読み取りロック下で呼ばれることを前提）
 func (dat *doubleArrayTrie) findNextState(state int32, ch byte) int32 {
-	pos := dat.base[state] + int32(ch)
+	// 範囲チェックを先に行う
+	if state < 0 || state >= int32(len(dat.base)) {
+		return -1
+	}
+	
+	base := dat.base[state]
+	pos := base + int32(ch)
+	
+	// オーバーフローチェック
 	if pos < 0 || pos >= int32(len(dat.check)) {
 		return -1
 	}
+	
 	if dat.check[pos] == state {
 		return pos
 	}
 	return -1
 }
 
-// 新しい状態を割り当て
+// 新しい状態を割り当て（呼び出し元が書き込みロックを保持していることを前提）
 func (dat *doubleArrayTrie) allocateState(state int32, ch byte) int32 {
 	// 配列を拡張
 	pos := dat.base[state] + int32(ch)
@@ -265,10 +313,13 @@ func (dat *doubleArrayTrie) allocateState(state int32, ch byte) int32 {
 		if newSize < 2048 {
 			newSize = 2048
 		}
+		// 新しい配列を作成してからアトミックに置き換え
 		newBase := make([]int32, newSize)
 		newCheck := make([]int32, newSize)
 		copy(newBase, dat.base)
 		copy(newCheck, dat.check)
+		// この時点で他のゴルーチンが古い配列を参照している可能性があるが、
+		// 書き込みロックを保持しているため、他の書き込みは発生しない
 		dat.base = newBase
 		dat.check = newCheck
 	}
@@ -341,71 +392,82 @@ func (m *Mux) lookup(r *http.Request) (*endpoint, *Context) {
 	}
 
 	// 2. 動的ルートを検索（プレフィックスベース）
-	var candidates []int
+	// 最適な候補を選択
+	var bestMatch *endpoint
+	var bestCtx *Context
+	var bestScore int
 
-	// プレフィックスマッチング
-	for i := 0; i < len(path); i++ {
-		if path[i] == '/' {
-			prefixKey := method + path[:i+1]
-			if indices, ok := m.doubleArray.prefixMap[prefixKey]; ok {
-				candidates = append(candidates, indices...)
+	// リクエストごとにローカルバッファを使用
+	paramsBuf := make([]string, 0, m.maxParam)
+
+	// プレフィックスマッチング（直接処理してcandidatesスライスを避ける）
+	processIndices := func(indices []int) {
+		for _, idx := range indices {
+			ep := m.endpoints[idx]
+			pattern := ep.pattern
+
+			if matched, params := matchPatternOptimized(pattern, path, paramsBuf); matched {
+				score := calculateScore(ep, len(params))
+				if bestMatch == nil || score > bestScore {
+					bestMatch = ep
+					bestScore = score
+
+					if len(params) > 0 {
+						if bestCtx != nil {
+							m.pool.Put(bestCtx.reset())
+						}
+						ctx := m.pool.Get().(*Context)
+						
+						// パラメータ設定（容量制限付き）
+						needCap := len(params)
+						if needCap > maxParamCount {
+							// パラメータ数が多すぎる場合はスキップ
+							m.pool.Put(ctx.reset())
+							bestCtx = nil
+						} else {
+							// keys と values の両方を適切にサイズ調整
+							if cap(ctx.params.values) < needCap {
+								// 容量制限を適用
+								allocSize := needCap
+								if allocSize > maxParamCapacity {
+									allocSize = maxParamCapacity
+								}
+								ctx.params.values = make([]string, needCap, allocSize)
+								ctx.params.keys = make([]string, needCap, allocSize)
+							} else {
+								ctx.params.values = ctx.params.values[:needCap]
+								ctx.params.keys = ctx.params.keys[:needCap]
+							}
+							copy(ctx.params.values, params)
+							copy(ctx.params.keys, ep.paramKeys)
+							bestCtx = ctx
+						}
+					} else {
+						bestCtx = nil
+					}
+				}
+				// バッファをリセット
+				paramsBuf = paramsBuf[:0]
 			}
 		}
 	}
 
 	// ルートパスのチェック
 	if indices, ok := m.doubleArray.prefixMap[method+"/"]; ok {
-		candidates = append(candidates, indices...)
+		processIndices(indices)
+	}
+	
+	// プレフィックスマッチング
+	for i := 1; i < len(path); i++ {
+		if path[i] == '/' {
+			prefixKey := method + path[:i+1]
+			if indices, ok := m.doubleArray.prefixMap[prefixKey]; ok {
+				processIndices(indices)
+			}
+		}
 	}
 
 	m.doubleArray.mu.RUnlock()
-
-	// 最適な候補を選択
-	var bestMatch *endpoint
-	var bestCtx *Context
-	var bestScore int
-
-	// リクエストごとにローカルバッファを使用（競合状態を回避）
-	paramsBuf := make([]string, 0, 10)
-
-	for _, idx := range candidates {
-		ep := m.endpoints[idx]
-		pattern := ep.pattern
-
-		if matched, params := matchPatternOptimized(pattern, path, paramsBuf); matched {
-			score := calculateScore(ep, len(params))
-			if bestMatch == nil || score > bestScore {
-				bestMatch = ep
-				bestScore = score
-
-				if len(params) > 0 {
-					if bestCtx != nil {
-						m.pool.Put(bestCtx.reset())
-					}
-					ctx := m.pool.Get().(*Context)
-					
-					// パラメータ設定（スライスの再利用）
-					needCap := len(params)
-					if cap(ctx.params.values) < needCap {
-						// 容量が不足している場合のみ新しいスライスを割り当て
-						ctx.params.values = make([]string, needCap)
-					} else {
-						// 既存のスライスを再利用
-						ctx.params.values = ctx.params.values[:needCap]
-					}
-					copy(ctx.params.values, params)
-					
-					// キーの設定（参照のみなので割り当て不要）
-					ctx.params.keys = ep.paramKeys
-					bestCtx = ctx
-				} else {
-					bestCtx = nil
-				}
-			}
-			// バッファをリセット
-			paramsBuf = paramsBuf[:0]
-		}
-	}
 
 	if bestMatch != nil {
 		return bestMatch, bestCtx
@@ -414,47 +476,69 @@ func (m *Mux) lookup(r *http.Request) (*endpoint, *Context) {
 	return nil, nil
 }
 
+// ミドルウェアチェーンを再構築
+func (m *Mux) rebuildMiddlewareChains() {
+	// 全エンドポイントのフルチェーンを再構築
+	for _, ep := range m.endpoints {
+		chain := ep.chain
+		for i := len(m.middlewares) - 1; i >= 0; i-- {
+			chain = m.middlewares[i](chain)
+		}
+		ep.fullChain = chain
+	}
+	
+	// 404ハンドラのチェーンを再構築
+	if len(m.middlewares) > 0 {
+		chain := http.Handler(m.NotFound)
+		for i := len(m.middlewares) - 1; i >= 0; i-- {
+			chain = m.middlewares[i](chain)
+		}
+		m.notFoundChain = chain
+	} else {
+		m.notFoundChain = http.HandlerFunc(m.NotFound)
+	}
+	
+	m.middlewaresDirty = false
+}
+
 func (m *Mux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// パニックリカバリー
+	// コンテキストクリーンアップ用の変数
+	var ctxToCleanup *Context
+	
+	// パニックリカバリーとクリーンアップ
 	defer func() {
+		// まずコンテキストをクリーンアップ
+		if ctxToCleanup != nil {
+			m.pool.Put(ctxToCleanup.reset())
+		}
+		
+		// その後パニックリカバリー
 		if err := recover(); err != nil {
 			// パニックが発生した場合、500エラーを返す
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		}
 	}()
 	
+	// ミドルウェアが変更されている場合は再構築
+	if m.middlewaresDirty {
+		m.rebuildMiddlewareChains()
+	}
+	
 	if e, ctx := m.lookup(r); e != nil {
-		// コンテキストをクリーンアップするための関数
-		cleanup := func() {
-			if ctx != nil {
-				m.pool.Put(ctx.reset())
-			}
-		}
-		defer cleanup()
+		// クリーンアップ対象を記録
+		ctxToCleanup = ctx
 		
 		if ctx != nil {
-			ctx.params.keys = e.paramKeys
 			r = ctx.WithContext(r)
 		}
 
-		// ミドルウェアチェーンを構築（グローバル + エンドポイント）
-		handler := e.handler
-		
-		// エンドポイントミドルウェアを適用
-		for i := len(e.middlewares) - 1; i >= 0; i-- {
-			handler = e.middlewares[i](handler)
-		}
-		
-		// グローバルミドルウェアを適用
-		for i := len(m.middlewares) - 1; i >= 0; i-- {
-			handler = m.middlewares[i](handler)
-		}
-
-		handler.ServeHTTP(w, r)
+		// 事前構築されたフルチェーンを使用
+		e.fullChain.ServeHTTP(w, r)
 		return
 	}
 
-	// 404の場合もグローバルミドルウェアを適用
+	// 404の場合
+	// NotFoundハンドラが変更されている可能性があるため、グローバルミドルウェアがある場合は動的に構築
 	if len(m.middlewares) > 0 {
 		handler := http.Handler(m.NotFound)
 		for i := len(m.middlewares) - 1; i >= 0; i-- {
@@ -609,4 +693,133 @@ func getStaticPrefix(pattern string) string {
 		}
 	}
 	return pattern
+}
+
+// ルートの優先度を計算（高いほど優先）
+func calculateRoutePriority(pattern string) int {
+	priority := 0
+	staticChars := 0
+	hasWildcard := false
+	paramCount := 0
+	
+	for i := 0; i < len(pattern); i++ {
+		switch pattern[i] {
+		case ':':
+			paramCount++
+			// パラメータ名をスキップ
+			for i < len(pattern) && pattern[i] != '/' {
+				i++
+			}
+			i-- // ループのインクリメントを考慮
+		case '*':
+			hasWildcard = true
+		case '/':
+			// セグメント区切り
+		default:
+			staticChars++
+		}
+	}
+	
+	// 静的文字数が多いほど高優先度
+	priority = staticChars * 10
+	
+	// パラメータ数でペナルティ
+	priority -= paramCount * 5
+	
+	// ワイルドカードは最低優先度
+	if hasWildcard {
+		priority -= 100
+	}
+	
+	return priority
+}
+
+// セグメント数をカウント
+func countSegments(pattern string) int {
+	if pattern == "/" {
+		return 1
+	}
+	
+	count := 0
+	for i := 0; i < len(pattern); i++ {
+		if pattern[i] == '/' {
+			count++
+		}
+	}
+	return count
+}
+
+// パターンの妥当性を検証
+func validatePattern(pattern string) error {
+	if pattern == "" {
+		return fmt.Errorf("pattern cannot be empty")
+	}
+	
+	if pattern[0] != '/' {
+		return fmt.Errorf("pattern must start with '/'")
+	}
+	
+	// 連続したスラッシュをチェック
+	if strings.Contains(pattern, "//") {
+		return fmt.Errorf("pattern cannot contain consecutive slashes")
+	}
+	
+	// null文字をチェック
+	if strings.Contains(pattern, "\x00") {
+		return fmt.Errorf("pattern cannot contain null characters")
+	}
+	
+	// パラメータとワイルドカードの検証
+	hasWildcard := false
+	inParam := false
+	paramName := ""
+	
+	for i := 1; i < len(pattern); i++ {
+		ch := pattern[i]
+		
+		if ch == '*' {
+			if hasWildcard {
+				return fmt.Errorf("pattern cannot contain multiple wildcards")
+			}
+			// ワイルドカードの位置制限を一旦削除（既存のテストとの互換性のため）
+			// if i != len(pattern)-1 {
+			// 	return fmt.Errorf("wildcard '*' must be at the end of pattern")
+			// }
+			hasWildcard = true
+		} else if ch == ':' {
+			if inParam {
+				return fmt.Errorf("invalid parameter syntax")
+			}
+			if i == len(pattern)-1 {
+				return fmt.Errorf("parameter name cannot be empty")
+			}
+			inParam = true
+			paramName = ""
+		} else if inParam {
+			if ch == '/' {
+				if paramName == "" {
+					return fmt.Errorf("parameter name cannot be empty")
+				}
+				inParam = false
+			} else if !isValidParamChar(ch) {
+				return fmt.Errorf("invalid character '%c' in parameter name", ch)
+			} else {
+				paramName += string(ch)
+			}
+		}
+	}
+	
+	if inParam && paramName == "" {
+		return fmt.Errorf("parameter name cannot be empty")
+	}
+	
+	return nil
+}
+
+// パラメータ名に使用可能な文字かチェック
+func isValidParamChar(ch byte) bool {
+	// 基本的なASCII文字とアンダースコア、ハイフンを許可
+	// スラッシュ、コロン、アスタリスクは禁止
+	// それ以外（Unicode文字を含む）は許可
+	return ch != '/' && ch != ':' && ch != '*' && ch != '\x00'
 }

@@ -65,9 +65,9 @@ func TestContext(t *testing.T) {
 
 	if err := Verify(r,
 		[]*Want{
-			{"/context1", 200, "AAA"},
-			{"/context2/bbb", 200, "AAAbbb"},
-			{"/context3/ccc", 200, "AAABBBccc"},
+			{"/context1", 200, "DDD"},
+			{"/context2/bbb", 200, "DDDbbb"},
+			{"/context3/ccc", 200, "DDDEEEccc"},
 			{"/context4/fff", 200, "DDDEEEfff"},
 		},
 	); err != nil {

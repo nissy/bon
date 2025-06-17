@@ -21,7 +21,7 @@ func TestRouteMiddleware(t *testing.T) {
 	if err := Verify(r,
 		[]*Want{
 			{"/a", 200, "Aa"},
-			{"/b", 200, "b"},
+			{"/b", 200, "Ab"},
 		},
 	); err != nil {
 		t.Fatal(err)

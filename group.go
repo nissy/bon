@@ -1,6 +1,9 @@
 package bon
 
-import "net/http"
+import (
+	"net/http"
+	"strings"
+)
 
 type Group struct {
 	mux         *Mux
@@ -20,6 +23,7 @@ func (g *Group) Route(middlewares ...Middleware) *Route {
 	return &Route{
 		mux:         g.mux,
 		middlewares: middlewares,
+		prefix:      g.prefix,
 	}
 }
 
@@ -64,10 +68,20 @@ func (g *Group) Trace(pattern string, handlerFunc http.HandlerFunc, middlewares 
 }
 
 func (g *Group) Handle(method, pattern string, handler http.Handler, middlewares ...Middleware) {
-	g.mux.Handle(method, g.prefix+resolvePatternPrefix(pattern), handler, append(g.middlewares, middlewares...)...)
+	// プレフィックスとパターンを安全に結合
+	fullPattern := g.prefix + resolvePatternPrefix(pattern)
+	// 連続スラッシュを除去
+	for strings.Contains(fullPattern, "//") {
+		fullPattern = strings.ReplaceAll(fullPattern, "//", "/")
+	}
+	g.mux.Handle(method, fullPattern, handler, append(g.middlewares, middlewares...)...)
 }
 
 func (g *Group) FileServer(pattern, root string, middlewares ...Middleware) {
 	p := g.prefix + resolvePatternPrefix(pattern)
+	// 連続スラッシュを除去
+	for strings.Contains(p, "//") {
+		p = strings.ReplaceAll(p, "//", "/")
+	}
 	contentsHandle(g, p, g.mux.newFileServer(p, root).contents, middlewares...)
 }

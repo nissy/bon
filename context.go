@@ -43,6 +43,13 @@ func (ctx *Context) WithContext(r *http.Request) *http.Request {
 }
 
 func (ctx *Context) reset() *Context {
+	// スライスをクリア（長さを0にして、要素への参照を削除）
+	for i := range ctx.params.keys {
+		ctx.params.keys[i] = ""
+	}
+	for i := range ctx.params.values {
+		ctx.params.values[i] = ""
+	}
 	ctx.params.keys = ctx.params.keys[:0]
 	ctx.params.values = ctx.params.values[:0]
 	return ctx

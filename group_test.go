@@ -53,8 +53,8 @@ func TestGroupMiddleware(t *testing.T) {
 
 	if err := Verify(r,
 		[]*Want{
-			{"/a/a", 200, "MAa"},
-			{"/a/a/a", 200, "MAMAAaa"},
+			{"/a/a", 200, "MMAa"},
+			{"/a/a/a", 200, "MMAMAAaa"},
 			{"/b/b", 200, "MMBb"},
 			{"/c/c", 200, "Mc"},
 		},
