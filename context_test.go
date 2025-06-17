@@ -41,17 +41,17 @@ func TestContext(t *testing.T) {
 	r.Use(ContextMiddleware(TestContextKeyAAA, &ContextValue{value: "AAA"}))
 	r.Get("/context1", func(w http.ResponseWriter, r *http.Request) {
 		v := r.Context().Value(TestContextKeyAAA).(*ContextValue)
-		w.Write([]byte(v.value))
+		_, _ = w.Write([]byte(v.value))
 	})
 	r.Get("/context2/:vv", func(w http.ResponseWriter, r *http.Request) {
 		v := r.Context().Value(TestContextKeyAAA).(*ContextValue)
-		w.Write([]byte(v.value + URLParam(r, "vv")))
+		_, _ = w.Write([]byte(v.value + URLParam(r, "vv")))
 	})
 	r.Use(ContextMiddleware(TestContextKeyBBB, &ContextValue{value: "BBB"}))
 	r.Get("/context3/:vv", func(w http.ResponseWriter, r *http.Request) {
 		a := r.Context().Value(TestContextKeyAAA).(*ContextValue)
 		b := r.Context().Value(TestContextKeyBBB).(*ContextValue)
-		w.Write([]byte(a.value + b.value + URLParam(r, "vv")))
+		_, _ = w.Write([]byte(a.value + b.value + URLParam(r, "vv")))
 	})
 	r.Use(
 		ContextMiddleware(TestContextKeyAAA, &ContextValue{value: "DDD"}),
@@ -60,7 +60,7 @@ func TestContext(t *testing.T) {
 	r.Get("/context4/:vv", func(w http.ResponseWriter, r *http.Request) {
 		a := r.Context().Value(TestContextKeyAAA).(*ContextValue)
 		b := r.Context().Value(TestContextKeyBBB).(*ContextValue)
-		w.Write([]byte(a.value + b.value + URLParam(r, "vv")))
+		_, _ = w.Write([]byte(a.value + b.value + URLParam(r, "vv")))
 	})
 
 	if err := Verify(r,

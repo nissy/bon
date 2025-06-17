@@ -9,19 +9,19 @@ import (
 func PlainText(w http.ResponseWriter, status int, v string) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(status)
-	w.Write([]byte(v))
+	_, _ = w.Write([]byte(v))
 }
 
 func Data(w http.ResponseWriter, status int, v []byte) {
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.WriteHeader(status)
-	w.Write(v)
+	_, _ = w.Write(v)
 }
 
 func Html(w http.ResponseWriter, status int, v string) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(status)
-	w.Write([]byte(v))
+	_, _ = w.Write([]byte(v))
 }
 
 func Json(w http.ResponseWriter, status int, v interface{}) {
