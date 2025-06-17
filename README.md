@@ -1,25 +1,39 @@
 <img alt="BON" src="https://nissy.github.io/bon/bon.svg" width="180" />
 
-Bon is fast http router of Go designed by Patricia tree
+Bon is a fast HTTP router for Go using a Double Array Trie data structure
  
  [![GoDoc Widget]][GoDoc]
 
 ## Features
- - Lightweight
- - Middleware framework
- - Not use third party package
- - Standard http request handler
- - Flexible routing
+ - **Fast**: Double Array Trie-based efficient routing
+ - **Zero dependencies**: Uses only Go standard library
+ - **Middleware support**: Router, Group, and Route level middleware
+ - **Standard HTTP**: Compatible with `http.Handler` interface
+ - **Flexible routing**: Static, parameter (`:param`), and wildcard (`*`) patterns
+ - **HTTP methods**: GET, POST, PUT, DELETE, HEAD, OPTIONS, PATCH, CONNECT, TRACE
+ - **File server**: Built-in static file serving with security protections
+ - **Context pooling**: Efficient memory usage with sync.Pool
+ - **Thread-safe**: Lock-free reads using atomic operations
 
-## Match Patterns
+## Route Patterns
 
-#### Priority high order
- 1. `static` is exact match
-    - ```/users/taro```
- 1. `param` is directorys range match
-    - ```/users/:name```
- 1. `any` is all range match
-    - ```/*```
+### Pattern Types and Priority
+
+Routes are matched in the following priority order (highest to lowest):
+
+1. **Static routes** - Exact path match
+   - Example: `/users/john`, `/api/v1/status`
+   - Highest priority, always matched first
+
+2. **Parameter routes** - Named parameter capture
+   - Example: `/users/:id`, `/posts/:category/:slug`
+   - Parameters are captured and accessible via `bon.URLParam(r, "name")`
+   - Unicode parameter names are supported: `/users/:名前`
+
+3. **Wildcard routes** - Catch-all pattern
+   - Example: `/files/*`, `/api/*`
+   - Lowest priority, matched only if no static or parameter routes match
+   - Only one wildcard per route is allowed
 
 ```go
 package main
@@ -316,7 +330,256 @@ The GitHub API is rather large, consisting of 203 routes. The tasks are basicall
 Bon            10000     105265 ns/op     42753 B/op     167 allocs/op
 ```
 
-Other http routers
+## HTTP Methods
+
+Bon supports all standard HTTP methods:
+
+```go
+r := bon.NewRouter()
+
+r.Get("/", handler)
+r.Post("/users", handler)
+r.Put("/users/:id", handler)
+r.Delete("/users/:id", handler)
+r.Head("/", handler)
+r.Options("/", handler)
+r.Patch("/users/:id", handler)
+r.Connect("/proxy", handler)
+r.Trace("/debug", handler)
+
+// Generic method handler
+r.Handle("CUSTOM", "/", handler)
+```
+
+## File Server
+
+Serve static files with built-in security:
+
+```go
+// Serve files from ./public directory at /static/*
+r.FileServer("/static", "./public")
+
+// With middleware
+r.FileServer("/assets", "./assets", 
+    middleware.BasicAuth(users),
+    middleware.CORS(config),
+)
+
+// Group with file server
+admin := r.Group("/admin")
+admin.Use(middleware.Auth())
+admin.FileServer("/files", "./admin-files")
+```
+
+Security features:
+- Path traversal protection (blocks `..`, `./`, etc.)
+- Hidden file protection (blocks `.` prefix files)
+- Null byte protection
+- Directory listing disabled
+
+## Custom 404 Handler
+
+```go
+r := bon.NewRouter()
+
+// Set custom NotFound handler
+r.NotFound = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+    w.WriteHeader(http.StatusNotFound)
+    w.Header().Set("Content-Type", "application/json")
+    w.Write([]byte(`{"error":"route not found"}`))
+})
+
+// NotFound handler also respects global middleware
+r.Use(middleware.Logger())
+```
+
+## URL Parameters
+
+Access route parameters using `bon.URLParam`:
+
+```go
+// Single parameter
+r.Get("/users/:id", func(w http.ResponseWriter, r *http.Request) {
+    userID := bon.URLParam(r, "id")
+    w.Write([]byte("User ID: " + userID))
+})
+
+// Multiple parameters
+r.Get("/posts/:category/:id/comments/:commentId", func(w http.ResponseWriter, r *http.Request) {
+    category := bon.URLParam(r, "category")
+    postID := bon.URLParam(r, "id")
+    commentID := bon.URLParam(r, "commentId")
+    // ...
+})
+
+// Unicode parameter names
+r.Get("/users/:名前", func(w http.ResponseWriter, r *http.Request) {
+    name := bon.URLParam(r, "名前")
+    w.Write([]byte("Hello, " + name))
+})
+```
+
+## Advanced Routing Examples
+
+### RESTful API
+
+```go
+package main
+
+import (
+    "encoding/json"
+    "net/http"
+    
+    "github.com/nissy/bon"
+)
+
+type User struct {
+    ID   string `json:"id"`
+    Name string `json:"name"`
+}
+
+func main() {
+    r := bon.NewRouter()
+    
+    // RESTful routes
+    r.Get("/users", listUsers)
+    r.Post("/users", createUser)
+    r.Get("/users/:id", getUser)
+    r.Put("/users/:id", updateUser)
+    r.Delete("/users/:id", deleteUser)
+    
+    // Nested resources
+    r.Get("/users/:userId/posts", getUserPosts)
+    r.Post("/users/:userId/posts", createUserPost)
+    r.Get("/users/:userId/posts/:postId", getUserPost)
+    
+    http.ListenAndServe(":8080", r)
+}
+
+func getUser(w http.ResponseWriter, r *http.Request) {
+    userID := bon.URLParam(r, "id")
+    user := User{ID: userID, Name: "John Doe"}
+    
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(user)
+}
+```
+
+### Versioned API
+
+```go
+package main
+
+import (
+    "net/http"
+    
+    "github.com/nissy/bon"
+    "github.com/nissy/bon/middleware"
+)
+
+func main() {
+    r := bon.NewRouter()
+    
+    // API v1
+    v1 := r.Group("/api/v1")
+    v1.Use(middleware.CORS(middleware.AccessControlConfig{
+        AllowOrigin: "*",
+    }))
+    v1.Get("/users", v1Users)
+    v1.Get("/posts", v1Posts)
+    
+    // API v2 with breaking changes
+    v2 := r.Group("/api/v2")
+    v2.Use(middleware.CORS(middleware.AccessControlConfig{
+        AllowOrigin: "*",
+    }))
+    v2.Use(middleware.Timeout(30 * time.Second))
+    v2.Get("/users", v2Users)     // New response format
+    v2.Get("/posts", v2Posts)     // New fields
+    v2.Get("/comments", v2Comments) // New endpoint
+    
+    http.ListenAndServe(":8080", r)
+}
+```
+
+### Microservice Gateway
+
+```go
+package main
+
+import (
+    "net/http"
+    "net/http/httputil"
+    "net/url"
+    
+    "github.com/nissy/bon"
+    "github.com/nissy/bon/middleware"
+)
+
+func main() {
+    r := bon.NewRouter()
+    
+    // Global middleware
+    r.Use(middleware.Logger())
+    r.Use(middleware.CORS(middleware.AccessControlConfig{
+        AllowOrigin: "*",
+    }))
+    
+    // User service
+    userService := r.Group("/users")
+    userService.Use(createProxy("http://user-service:8081"))
+    userService.Handle("GET", "/*", nil)
+    userService.Handle("POST", "/*", nil)
+    userService.Handle("PUT", "/*", nil)
+    userService.Handle("DELETE", "/*", nil)
+    
+    // Order service
+    orderService := r.Group("/orders")
+    orderService.Use(createProxy("http://order-service:8082"))
+    orderService.Handle("GET", "/*", nil)
+    orderService.Handle("POST", "/*", nil)
+    
+    // Static assets
+    r.FileServer("/assets", "./public")
+    
+    http.ListenAndServe(":8080", r)
+}
+
+func createProxy(target string) bon.Middleware {
+    url, _ := url.Parse(target)
+    proxy := httputil.NewSingleHostReverseProxy(url)
+    
+    return func(next http.Handler) http.Handler {
+        return proxy
+    }
+}
+```
+
+## Performance Tips
+
+1. **Route Order**: No need to worry about registration order - the router automatically prioritizes routes
+
+2. **Middleware**: Apply middleware at the appropriate level
+   - Router-level for global concerns (logging, recovery)
+   - Group-level for shared functionality (auth, CORS)
+   - Route-level for specific needs
+
+3. **Context Pool**: The router automatically pools context objects for parameter storage
+
+4. **Static Routes**: Use exact paths when possible for best performance
+
+## Benchmarks
+
+### [GitHub API](http://developer.github.com/v3/)
+
+The GitHub API benchmark consists of 203 routes:
+
+```
+Bon            10000     105265 ns/op     42753 B/op     167 allocs/op
+```
+
+Comparison with other routers:
+
 ```
 Beego           3000     464848 ns/op     74707 B/op     812 allocs/op
 Chi            10000     152969 ns/op     61714 B/op     406 allocs/op
@@ -331,5 +594,14 @@ Tango           5000     285607 ns/op     63834 B/op    1618 allocs/op
 Vulcan         10000     177044 ns/op     19894 B/op     609 allocs/op
 ```
 
+## Installation
+
+```bash
+go get github.com/nissy/bon
+```
+
+## License
+
+MIT
 [GoDoc]: https://godoc.org/github.com/nissy/bon
 [GoDoc Widget]: https://godoc.org/github.com/nissy/bon?status.svg

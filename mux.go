@@ -5,52 +5,68 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 )
 
 const (
-	nodeKindStatic nodeKind = iota
-	nodeKindParam
-	nodeKindAny
+	// Node types
+	nodeKindStatic nodeKind = iota // Static match (exact match)
+	nodeKindParam                   // Parameter match (:param)
+	nodeKindAny                     // Wildcard match (*)
 	
-	// パラメータの最大数制限（メモリ枯渇攻撃を防ぐ）
-	maxParamCount = 256  // 十分に大きな値に設定
-	// パラメータ容量の最大値（メモリ使用量を制限）
-	maxParamCapacity = 512
+	// Security limits
+	maxParamCount    = 256 // Maximum number of parameters (prevent memory exhaustion)
+	maxParamCapacity = 512 // Maximum parameter capacity (memory usage limit)
+	
+	// Internal buffer sizes
+	initialEndpointsCap    = 128  // Initial capacity for endpoints slice
+	initialTrieSize        = 1024 // Initial size for trie arrays
+	trieExpandSize         = 1024 // Expansion unit for trie arrays
+	minTrieSize            = 2048 // Minimum size for trie arrays
+	initialParamBufferSize = 10   // Initial parameter buffer size
 )
 
 type (
+	// Mux is the main HTTP router structure
 	Mux struct {
-		doubleArray      *doubleArrayTrie
-		endpoints        []*endpoint
-		middlewares      []Middleware
-		pool             sync.Pool
-		maxParam         int
-		NotFound         http.HandlerFunc
-		notFoundChain    http.Handler // 事前構築された404ハンドラチェーン
-		middlewaresDirty bool         // ミドルウェアが変更されたかのフラグ
+		doubleArray      *doubleArrayTrie  // Double array trie for routing
+		endpoints        []*endpoint       // Slice of registered endpoints
+		middlewares      []Middleware      // Global middlewares
+		pool             sync.Pool         // Pool for Context reuse
+		maxParam         int               // Maximum parameter count (dynamically updated)
+		NotFound         http.HandlerFunc  // 404 handler
+		notFoundChain    http.Handler      // Pre-built 404 handler chain
+		middlewaresDirty bool              // Whether middleware rebuild is needed
 	}
 
 	nodeKind uint8
 
-	// ダブル配列トライ
+	// doubleArrayTrie is a data structure for fast route lookup
 	doubleArrayTrie struct {
-		base      []int32
-		check     []int32
-		routes    map[string]int   // パターン -> エンドポイントインデックスのマッピング
-		staticMap map[string]int   // 静的ルートの高速検索用
-		prefixMap map[string][]int // プレフィックス -> インデックスリスト
-		mu        sync.RWMutex
+		// Atomic pointer to the current trie data for lock-free reads
+		data      atomic.Pointer[trieData]
+		mu        sync.Mutex               // Mutex for write operations only
+	}
+	
+	// trieData holds the actual trie arrays and maps
+	trieData struct {
+		base      []int32          // Base array for trie
+		check     []int32          // Check array for state verification
+		routes    map[string]int   // "METHOD/path" -> endpoint index mapping
+		staticMap map[string]int   // Fast lookup map for static routes
+		prefixMap map[string][]int // Prefix map for dynamic routes
 	}
 
+	// endpoint contains route endpoint information
 	endpoint struct {
-		handler     http.Handler
-		middlewares []Middleware
-		chain       http.Handler // エンドポイントミドルウェアのみのチェーン
-		fullChain   http.Handler // グローバル＋エンドポイントミドルウェアのフルチェーン
-		paramKeys   []string
-		pattern     string
-		method      string
-		kind        nodeKind
+		handler     http.Handler  // Original handler
+		middlewares []Middleware  // Endpoint-specific middlewares
+		chain       http.Handler  // Handler with only endpoint middlewares applied
+		fullChain   http.Handler  // Handler with all middlewares applied (used at runtime)
+		paramKeys   []string      // Parameter names (e.g., ["id", "name"])
+		pattern     string        // Route pattern (e.g., "/users/:id")
+		method      string        // HTTP method (e.g., "GET")
+		kind        nodeKind      // Node type (static/param/any)
 	}
 
 	Middleware func(http.Handler) http.Handler
@@ -59,7 +75,7 @@ type (
 func newMux() *Mux {
 	m := &Mux{
 		doubleArray: newDoubleArrayTrie(),
-		endpoints:   make([]*endpoint, 0, 128), // 事前割り当て
+		endpoints:   make([]*endpoint, 0, initialEndpointsCap),
 		NotFound:    http.NotFound,
 	}
 	
@@ -77,15 +93,31 @@ func newMux() *Mux {
 
 // ダブル配列トライの作成
 func newDoubleArrayTrie() *doubleArrayTrie {
-	dat := &doubleArrayTrie{
-		base:      make([]int32, 1024),
-		check:     make([]int32, 1024),
+	dat := &doubleArrayTrie{}
+	
+	// 初期データを作成
+	initialData := &trieData{
+		base:      make([]int32, initialTrieSize),
+		check:     make([]int32, initialTrieSize),
 		routes:    make(map[string]int),
 		staticMap: make(map[string]int),
 		prefixMap: make(map[string][]int),
 	}
-	dat.base[0] = 1
+	initialData.base[0] = 1
+	
+	// Atomic pointerに初期データを設定
+	dat.data.Store(initialData)
+	
 	return dat
+}
+
+// ミドルウェアチェーンを構築
+func buildMiddlewareChain(handler http.Handler, middlewares []Middleware) http.Handler {
+	chain := handler
+	for i := len(middlewares) - 1; i >= 0; i-- {
+		chain = middlewares[i](chain)
+	}
+	return chain
 }
 
 func isStaticPattern(v string) bool {
@@ -205,19 +237,9 @@ func (m *Mux) Handle(method, pattern string, handler http.Handler, middlewares .
 		kind:        nodeKindStatic,
 	}
 
-	// エンドポイントミドルウェアチェーンを事前構築
-	chain := handler
-	for i := len(middlewares) - 1; i >= 0; i-- {
-		chain = middlewares[i](chain)
-	}
-	ep.chain = chain
-	
-	// グローバルミドルウェアを含むフルチェーンを構築
-	fullChain := chain
-	for i := len(m.middlewares) - 1; i >= 0; i-- {
-		fullChain = m.middlewares[i](fullChain)
-	}
-	ep.fullChain = fullChain
+	// ミドルウェアチェーンを構築
+	ep.chain = buildMiddlewareChain(handler, middlewares)
+	ep.fullChain = buildMiddlewareChain(ep.chain, m.middlewares)
 
 	// パラメータキーを抽出
 	if !isStaticPattern(pattern) {
@@ -238,8 +260,11 @@ func (m *Mux) Handle(method, pattern string, handler http.Handler, middlewares .
 	key := method + pattern
 
 	// 既存のルートがある場合は置き換え
-	if existingIdx, exists := m.doubleArray.routes[key]; exists {
+	currentData := m.doubleArray.data.Load()
+	if existingIdx, exists := currentData.routes[key]; exists {
 		m.endpoints[existingIdx] = ep
+		// insertを呼んでデータを更新（既存のキーを上書き）
+		m.doubleArray.insert(key, existingIdx)
 		return
 	}
 
@@ -252,11 +277,36 @@ func (dat *doubleArrayTrie) insert(key string, index int) {
 	dat.mu.Lock()
 	defer dat.mu.Unlock()
 
-	dat.routes[key] = index
+	// 現在のデータを取得してコピーを作成
+	oldData := dat.data.Load()
+	newData := &trieData{
+		base:      make([]int32, len(oldData.base)),
+		check:     make([]int32, len(oldData.check)),
+		routes:    make(map[string]int),
+		staticMap: make(map[string]int),
+		prefixMap: make(map[string][]int),
+	}
+	
+	// 既存のデータをコピー
+	copy(newData.base, oldData.base)
+	copy(newData.check, oldData.check)
+	for k, v := range oldData.routes {
+		newData.routes[k] = v
+	}
+	for k, v := range oldData.staticMap {
+		newData.staticMap[k] = v
+	}
+	for k, v := range oldData.prefixMap {
+		newData.prefixMap[k] = append([]int{}, v...)
+	}
+
+	newData.routes[key] = index
 
 	// メソッドとパスを分離
 	methodEnd := strings.Index(key, "/")
 	if methodEnd == -1 {
+		// 新しいデータをアトミックに設定
+		dat.data.Store(newData)
 		return
 	}
 
@@ -264,14 +314,14 @@ func (dat *doubleArrayTrie) insert(key string, index int) {
 
 	// 静的ルートは高速マップに登録
 	if isStaticPattern(pattern) {
-		dat.staticMap[key] = index
+		newData.staticMap[key] = index
 
 		// ダブル配列トライにも登録
 		state := int32(0)
 		for _, ch := range []byte(key) {
-			nextState := dat.findNextState(state, ch)
+			nextState := dat.findNextStateInData(newData, state, ch)
 			if nextState == -1 {
-				nextState = dat.allocateState(state, ch)
+				nextState = dat.allocateStateInData(newData, state, ch)
 			}
 			state = nextState
 		}
@@ -279,62 +329,63 @@ func (dat *doubleArrayTrie) insert(key string, index int) {
 		// 動的ルートはプレフィックスで管理
 		prefix := getStaticPrefix(pattern)
 		prefixKey := key[:methodEnd] + prefix
-		dat.prefixMap[prefixKey] = append(dat.prefixMap[prefixKey], index)
+		newData.prefixMap[prefixKey] = append(newData.prefixMap[prefixKey], index)
 	}
+	
+	// 新しいデータをアトミックに設定
+	dat.data.Store(newData)
 }
 
-// 次の状態を検索（読み取りロック下で呼ばれることを前提）
-func (dat *doubleArrayTrie) findNextState(state int32, ch byte) int32 {
+// 次の状態を検索（特定のtrieDataで）
+func (dat *doubleArrayTrie) findNextStateInData(data *trieData, state int32, ch byte) int32 {
 	// 範囲チェックを先に行う
-	if state < 0 || state >= int32(len(dat.base)) {
+	if state < 0 || state >= int32(len(data.base)) {
 		return -1
 	}
 	
-	base := dat.base[state]
+	base := data.base[state]
 	pos := base + int32(ch)
 	
 	// オーバーフローチェック
-	if pos < 0 || pos >= int32(len(dat.check)) {
+	if pos < 0 || pos >= int32(len(data.check)) {
 		return -1
 	}
 	
-	if dat.check[pos] == state {
+	if data.check[pos] == state {
 		return pos
 	}
 	return -1
 }
 
-// 新しい状態を割り当て（呼び出し元が書き込みロックを保持していることを前提）
-func (dat *doubleArrayTrie) allocateState(state int32, ch byte) int32 {
+// 新しい状態を割り当て（特定のtrieDataで）
+func (dat *doubleArrayTrie) allocateStateInData(data *trieData, state int32, ch byte) int32 {
 	// 配列を拡張
-	pos := dat.base[state] + int32(ch)
-	if pos >= int32(len(dat.base)) || pos < 0 {
-		newSize := pos + 1024
-		if newSize < 2048 {
-			newSize = 2048
+	pos := data.base[state] + int32(ch)
+	if pos >= int32(len(data.base)) || pos < 0 {
+		newSize := pos + trieExpandSize
+		if newSize < minTrieSize {
+			newSize = minTrieSize
 		}
-		// 新しい配列を作成してからアトミックに置き換え
+		// 配列を拡張
 		newBase := make([]int32, newSize)
 		newCheck := make([]int32, newSize)
-		copy(newBase, dat.base)
-		copy(newCheck, dat.check)
-		// この時点で他のゴルーチンが古い配列を参照している可能性があるが、
-		// 書き込みロックを保持しているため、他の書き込みは発生しない
-		dat.base = newBase
-		dat.check = newCheck
+		copy(newBase, data.base)
+		copy(newCheck, data.check)
+		data.base = newBase
+		data.check = newCheck
 	}
 
 	// 衝突がある場合は新しいbaseを探す
-	if dat.check[pos] != 0 {
-		newBase := dat.base[state] + 1
+	if data.check[pos] != 0 {
+		newBase := data.base[state] + 1
 		for {
 			canUse := true
 			// 既存の遷移をチェック
 			for c := byte(0); c < 255; c++ {
-				oldPos := dat.base[state] + int32(c)
-				if oldPos >= 0 && oldPos < int32(len(dat.check)) && dat.check[oldPos] == state {
+				oldPos := data.base[state] + int32(c)
+				if oldPos >= 0 && oldPos < int32(len(data.check)) && data.check[oldPos] == state {
 					newPos := newBase + int32(c)
-					if newPos < 0 || newPos >= int32(len(dat.check)) || dat.check[newPos] != 0 {
+					if newPos < 0 || newPos >= int32(len(data.check)) || data.check[newPos] != 0 {
 						canUse = false
 						break
 					}
@@ -344,26 +395,26 @@ func (dat *doubleArrayTrie) allocateState(state int32, ch byte) int32 {
 			if canUse {
 				// 既存の遷移を移動
 				for c := byte(0); c < 255; c++ {
-					oldPos := dat.base[state] + int32(c)
-					if oldPos >= 0 && oldPos < int32(len(dat.check)) && dat.check[oldPos] == state {
+					oldPos := data.base[state] + int32(c)
+					if oldPos >= 0 && oldPos < int32(len(data.check)) && data.check[oldPos] == state {
 						newPos := newBase + int32(c)
-						if newPos >= int32(len(dat.base)) {
+						if newPos >= int32(len(data.base)) {
 							// 配列を拡張
-							expandSize := newPos + 1024
+							expandSize := newPos + trieExpandSize
 							newB := make([]int32, expandSize)
 							newC := make([]int32, expandSize)
-							copy(newB, dat.base)
-							copy(newC, dat.check)
-							dat.base = newB
-							dat.check = newC
+							copy(newB, data.base)
+							copy(newC, data.check)
+							data.base = newB
+							data.check = newC
 						}
-						dat.base[newPos] = dat.base[oldPos]
-						dat.check[newPos] = state
-						dat.base[oldPos] = 0
-						dat.check[oldPos] = 0
+						data.base[newPos] = data.base[oldPos]
+						data.check[newPos] = state
+						data.base[oldPos] = 0
+						data.check[oldPos] = 0
 					}
 				}
-				dat.base[state] = newBase
+				data.base[state] = newBase
 				pos = newBase + int32(ch)
 				break
 			}
@@ -371,9 +422,9 @@ func (dat *doubleArrayTrie) allocateState(state int32, ch byte) int32 {
 		}
 	}
 
-	dat.check[pos] = state
-	if dat.base[pos] == 0 {
-		dat.base[pos] = pos + 1
+	data.check[pos] = state
+	if data.base[pos] == 0 {
+		data.base[pos] = pos + 1
 	}
 	return pos
 }
@@ -385,9 +436,10 @@ func (m *Mux) lookup(r *http.Request) (*endpoint, *Context) {
 	// 1. 静的ルートを高速検索
 	key := method + path
 
-	m.doubleArray.mu.RLock()
-	if idx, exists := m.doubleArray.staticMap[key]; exists {
-		m.doubleArray.mu.RUnlock()
+	// アトミックにデータを取得（ロックフリー読み取り）
+	data := m.doubleArray.data.Load()
+	
+	if idx, exists := data.staticMap[key]; exists {
 		return m.endpoints[idx], nil
 	}
 
@@ -396,9 +448,12 @@ func (m *Mux) lookup(r *http.Request) (*endpoint, *Context) {
 	var bestMatch *endpoint
 	var bestCtx *Context
 	var bestScore int
+	
+	// 使用中のコンテキストを追跡（最後にクリーンアップ用）
+	var currentCtx *Context
 
 	// リクエストごとにローカルバッファを使用
-	paramsBuf := make([]string, 0, m.maxParam)
+	paramsBuf := make([]string, 0, initialParamBufferSize)
 
 	// プレフィックスマッチング（直接処理してcandidatesスライスを避ける）
 	processIndices := func(indices []int) {
@@ -413,34 +468,17 @@ func (m *Mux) lookup(r *http.Request) (*endpoint, *Context) {
 					bestScore = score
 
 					if len(params) > 0 {
-						if bestCtx != nil {
-							m.pool.Put(bestCtx.reset())
+						// 新しいコンテキストが必要な場合のみ取得
+						if currentCtx == nil {
+							currentCtx = m.pool.Get().(*Context)
 						}
-						ctx := m.pool.Get().(*Context)
 						
 						// パラメータ設定（容量制限付き）
-						needCap := len(params)
-						if needCap > maxParamCount {
-							// パラメータ数が多すぎる場合はスキップ
-							m.pool.Put(ctx.reset())
+						if !m.setupContextParams(currentCtx, params, ep.paramKeys) {
+							// パラメータ数が多すぎる場合
 							bestCtx = nil
 						} else {
-							// keys と values の両方を適切にサイズ調整
-							if cap(ctx.params.values) < needCap {
-								// 容量制限を適用
-								allocSize := needCap
-								if allocSize > maxParamCapacity {
-									allocSize = maxParamCapacity
-								}
-								ctx.params.values = make([]string, needCap, allocSize)
-								ctx.params.keys = make([]string, needCap, allocSize)
-							} else {
-								ctx.params.values = ctx.params.values[:needCap]
-								ctx.params.keys = ctx.params.keys[:needCap]
-							}
-							copy(ctx.params.values, params)
-							copy(ctx.params.keys, ep.paramKeys)
-							bestCtx = ctx
+							bestCtx = currentCtx
 						}
 					} else {
 						bestCtx = nil
@@ -453,7 +491,7 @@ func (m *Mux) lookup(r *http.Request) (*endpoint, *Context) {
 	}
 
 	// ルートパスのチェック
-	if indices, ok := m.doubleArray.prefixMap[method+"/"]; ok {
+	if indices, ok := data.prefixMap[method+"/"]; ok {
 		processIndices(indices)
 	}
 	
@@ -461,42 +499,66 @@ func (m *Mux) lookup(r *http.Request) (*endpoint, *Context) {
 	for i := 1; i < len(path); i++ {
 		if path[i] == '/' {
 			prefixKey := method + path[:i+1]
-			if indices, ok := m.doubleArray.prefixMap[prefixKey]; ok {
+			if indices, ok := data.prefixMap[prefixKey]; ok {
 				processIndices(indices)
 			}
 		}
 	}
 
-	m.doubleArray.mu.RUnlock()
-
 	if bestMatch != nil {
+		// 使用しないコンテキストをプールに戻す
+		if currentCtx != nil && currentCtx != bestCtx {
+			m.pool.Put(currentCtx.reset())
+		}
 		return bestMatch, bestCtx
+	}
+	
+	// マッチしなかった場合、コンテキストをプールに戻す
+	if currentCtx != nil {
+		m.pool.Put(currentCtx.reset())
 	}
 
 	return nil, nil
+}
+
+// コンテキストにパラメータを設定
+func (m *Mux) setupContextParams(ctx *Context, values []string, keys []string) bool {
+	needCap := len(values)
+	
+	// パラメータ数の制限チェック
+	if needCap > maxParamCount {
+		return false
+	}
+	
+	// keys と values の両方を適切にサイズ調整
+	if cap(ctx.params.values) < needCap {
+		// 容量制限を適用
+		allocSize := needCap
+		if allocSize > maxParamCapacity {
+			allocSize = maxParamCapacity
+		}
+		ctx.params.values = make([]string, needCap, allocSize)
+		ctx.params.keys = make([]string, needCap, allocSize)
+	} else {
+		ctx.params.values = ctx.params.values[:needCap]
+		ctx.params.keys = ctx.params.keys[:needCap]
+	}
+	
+	copy(ctx.params.values, values)
+	copy(ctx.params.keys, keys)
+	
+	return true
 }
 
 // ミドルウェアチェーンを再構築
 func (m *Mux) rebuildMiddlewareChains() {
 	// 全エンドポイントのフルチェーンを再構築
 	for _, ep := range m.endpoints {
-		chain := ep.chain
-		for i := len(m.middlewares) - 1; i >= 0; i-- {
-			chain = m.middlewares[i](chain)
-		}
-		ep.fullChain = chain
+		ep.fullChain = buildMiddlewareChain(ep.chain, m.middlewares)
 	}
 	
 	// 404ハンドラのチェーンを再構築
-	if len(m.middlewares) > 0 {
-		chain := http.Handler(m.NotFound)
-		for i := len(m.middlewares) - 1; i >= 0; i-- {
-			chain = m.middlewares[i](chain)
-		}
-		m.notFoundChain = chain
-	} else {
-		m.notFoundChain = http.HandlerFunc(m.NotFound)
-	}
+	m.notFoundChain = buildMiddlewareChain(m.NotFound, m.middlewares)
 	
 	m.middlewaresDirty = false
 }
@@ -538,16 +600,9 @@ func (m *Mux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 404の場合
-	// NotFoundハンドラが変更されている可能性があるため、グローバルミドルウェアがある場合は動的に構築
-	if len(m.middlewares) > 0 {
-		handler := http.Handler(m.NotFound)
-		for i := len(m.middlewares) - 1; i >= 0; i-- {
-			handler = m.middlewares[i](handler)
-		}
-		handler.ServeHTTP(w, r)
-	} else {
-		m.NotFound.ServeHTTP(w, r)
-	}
+	// NotFoundハンドラが変更されている可能性があるため動的に構築
+	notFoundHandler := buildMiddlewareChain(m.NotFound, m.middlewares)
+	notFoundHandler.ServeHTTP(w, r)
 }
 
 // パラメーターキーを抽出
@@ -695,62 +750,20 @@ func getStaticPrefix(pattern string) string {
 	return pattern
 }
 
-// ルートの優先度を計算（高いほど優先）
-func calculateRoutePriority(pattern string) int {
-	priority := 0
-	staticChars := 0
-	hasWildcard := false
-	paramCount := 0
-	
-	for i := 0; i < len(pattern); i++ {
-		switch pattern[i] {
-		case ':':
-			paramCount++
-			// パラメータ名をスキップ
-			for i < len(pattern) && pattern[i] != '/' {
-				i++
-			}
-			i-- // ループのインクリメントを考慮
-		case '*':
-			hasWildcard = true
-		case '/':
-			// セグメント区切り
-		default:
-			staticChars++
-		}
-	}
-	
-	// 静的文字数が多いほど高優先度
-	priority = staticChars * 10
-	
-	// パラメータ数でペナルティ
-	priority -= paramCount * 5
-	
-	// ワイルドカードは最低優先度
-	if hasWildcard {
-		priority -= 100
-	}
-	
-	return priority
-}
-
-// セグメント数をカウント
-func countSegments(pattern string) int {
-	if pattern == "/" {
-		return 1
-	}
-	
-	count := 0
-	for i := 0; i < len(pattern); i++ {
-		if pattern[i] == '/' {
-			count++
-		}
-	}
-	return count
-}
 
 // パターンの妥当性を検証
 func validatePattern(pattern string) error {
+	// 基本的な検証
+	if err := validatePatternBasic(pattern); err != nil {
+		return err
+	}
+	
+	// パラメータとワイルドカードの検証
+	return validatePatternParams(pattern)
+}
+
+// パターンの基本的な検証
+func validatePatternBasic(pattern string) error {
 	if pattern == "" {
 		return fmt.Errorf("pattern cannot be empty")
 	}
@@ -769,24 +782,28 @@ func validatePattern(pattern string) error {
 		return fmt.Errorf("pattern cannot contain null characters")
 	}
 	
-	// パラメータとワイルドカードの検証
-	hasWildcard := false
-	inParam := false
-	paramName := ""
+	return nil
+}
+
+// パターンのパラメータとワイルドカードを検証
+func validatePatternParams(pattern string) error {
+	var (
+		hasWildcard = false
+		inParam     = false
+		paramName   = ""
+	)
 	
 	for i := 1; i < len(pattern); i++ {
 		ch := pattern[i]
 		
-		if ch == '*' {
+		switch {
+		case ch == '*':
 			if hasWildcard {
 				return fmt.Errorf("pattern cannot contain multiple wildcards")
 			}
-			// ワイルドカードの位置制限を一旦削除（既存のテストとの互換性のため）
-			// if i != len(pattern)-1 {
-			// 	return fmt.Errorf("wildcard '*' must be at the end of pattern")
-			// }
 			hasWildcard = true
-		} else if ch == ':' {
+			
+		case ch == ':':
 			if inParam {
 				return fmt.Errorf("invalid parameter syntax")
 			}
@@ -795,7 +812,8 @@ func validatePattern(pattern string) error {
 			}
 			inParam = true
 			paramName = ""
-		} else if inParam {
+			
+		case inParam:
 			if ch == '/' {
 				if paramName == "" {
 					return fmt.Errorf("parameter name cannot be empty")
