@@ -1,19 +1,62 @@
 <img alt="BON" src="https://nissy.github.io/bon/bon.svg" width="180" />
 
-Bon is a fast HTTP router for Go using a Double Array Trie data structure
- 
- [![GoDoc Widget]][GoDoc]
+# Bon - Fast HTTP Router for Go
+
+Bon is a high-performance HTTP router for Go that uses a double array trie data structure for efficient route matching. It focuses on speed, simplicity, and zero external dependencies.
+
+[![GoDoc Widget]][GoDoc] [![Go Report Card](https://goreportcard.com/badge/github.com/nissy/bon)](https://goreportcard.com/report/github.com/nissy/bon)
 
 ## Features
- - **Fast**: Double Array Trie-based efficient routing
- - **Zero dependencies**: Uses only Go standard library
- - **Middleware support**: Router, Group, and Route level middleware
- - **Standard HTTP**: Compatible with `http.Handler` interface
- - **Flexible routing**: Static, parameter (`:param`), and wildcard (`*`) patterns
- - **HTTP methods**: GET, POST, PUT, DELETE, HEAD, OPTIONS, PATCH, CONNECT, TRACE
- - **File server**: Built-in static file serving with security protections
- - **Context pooling**: Efficient memory usage with sync.Pool
- - **Thread-safe**: Lock-free reads using atomic operations
+
+- **High Performance**: Double array trie-based routing for optimal performance
+- **Zero Dependencies**: Uses only Go standard library
+- **Middleware Support**: Flexible middleware at router, group, and route levels
+- **Standard HTTP Compatible**: Works with `http.Handler` interface
+- **Flexible Routing**: Static, parameter (`:param`), and wildcard (`*`) patterns
+- **All HTTP Methods**: GET, POST, PUT, DELETE, HEAD, OPTIONS, PATCH, CONNECT, TRACE
+- **File Server**: Built-in static file serving with security protections
+- **Context Pooling**: Efficient memory usage with sync.Pool
+- **Thread-Safe**: Lock-free reads using atomic operations
+- **Panic Recovery**: Built-in recovery middleware available
+
+## Quick Start
+
+```go
+package main
+
+import (
+    "net/http"
+    
+    "github.com/nissy/bon"
+    "github.com/nissy/bon/middleware"
+)
+
+func main() {
+    r := bon.NewRouter()
+    
+    // Global middleware
+    r.Use(middleware.Recovery())  // Panic recovery
+    
+    // Simple route
+    r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+        w.Write([]byte("Hello, Bon!"))
+    })
+    
+    // Route with parameter
+    r.Get("/users/:id", func(w http.ResponseWriter, r *http.Request) {
+        userID := bon.URLParam(r, "id")
+        w.Write([]byte("User: " + userID))
+    })
+    
+    http.ListenAndServe(":8080", r)
+}
+```
+
+## Installation
+
+```bash
+go get github.com/nissy/bon
+```
 
 ## Route Patterns
 
@@ -22,322 +65,159 @@ Bon is a fast HTTP router for Go using a Double Array Trie data structure
 Routes are matched in the following priority order (highest to lowest):
 
 1. **Static routes** - Exact path match
-   - Example: `/users/john`, `/api/v1/status`
-   - Highest priority, always matched first
+   ```go
+   r.Get("/users/profile", handler)  // Highest priority
+   r.Get("/api/v1/status", handler)
+   ```
 
 2. **Parameter routes** - Named parameter capture
-   - Example: `/users/:id`, `/posts/:category/:slug`
-   - Parameters are captured and accessible via `bon.URLParam(r, "name")`
-   - Unicode parameter names are supported: `/users/:名前`
+   ```go
+   r.Get("/users/:id", handler)      // Captures id parameter
+   r.Get("/posts/:category/:slug", handler)
+   ```
 
 3. **Wildcard routes** - Catch-all pattern
-   - Example: `/files/*`, `/api/*`
-   - Lowest priority, matched only if no static or parameter routes match
-   - Only one wildcard per route is allowed
+   ```go
+   r.Get("/files/*", handler)        // Lowest priority
+   r.Get("/api/*", handler)
+   ```
+
+### Parameter Extraction
 
 ```go
-package main
+// Single parameter
+r.Get("/users/:id", func(w http.ResponseWriter, r *http.Request) {
+    userID := bon.URLParam(r, "id")
+    // Use userID...
+})
 
-import (
-	"net/http"
+// Multiple parameters
+r.Get("/posts/:category/:id", func(w http.ResponseWriter, r *http.Request) {
+    category := bon.URLParam(r, "category")
+    postID := bon.URLParam(r, "id")
+    // Use parameters...
+})
 
-	"github.com/nissy/bon"
-)
-
-func main() {
-	r := bon.NewRouter()
-
-	r.Get("/users/taro", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("static"))
-	})
-	r.Get("/users/:name", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("param name is " + bon.URLParam(r, "name")))
-	})
-	r.Get("/*", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("any"))
-	})
-
-	http.ListenAndServe(":8080", r)
-}
+// Unicode parameter names are supported
+r.Get("/users/:名前", func(w http.ResponseWriter, r *http.Request) {
+    name := bon.URLParam(r, "名前")
+    // Use name...
+})
 ```
 
 ## Middleware
 
 ### Middleware Execution Order
 
-Middleware in Bon follows a specific execution order based on where it's defined:
-
-1. **Router-level middleware** - Applied to all routes
-2. **Group-level middleware** - Applied to all routes within the group (including nested groups)
-3. **Route-level middleware** - Applied only to the specific route
-
-Middleware executes in the order it was added, wrapping the handler in layers:
+Middleware executes in the order it was added, creating a chain:
 
 ```go
-// Execution order: Auth -> Logging -> CORS -> Handler
 r := bon.NewRouter()
-r.Use(middleware.Auth())        // 1st - Router level
-r.Use(middleware.Logging())     // 2nd - Router level
+
+// Execution order: Recovery -> CORS -> Auth -> Handler
+r.Use(middleware.Recovery())     // 1st - Catches panics
+r.Use(middleware.CORS(config))   // 2nd - Handles CORS
 
 api := r.Group("/api")
-api.Use(middleware.CORS())      // 3rd - Group level
-
-api.Get("/users", handler)      // Handler executes last
+api.Use(middleware.BasicAuth(users)) // 3rd - Authenticates
+api.Get("/data", handler)        // Finally, the handler
 ```
 
-### Group vs Route
+### Built-in Middleware
 
-The key differences between `Group` and `Route`:
-
-#### Group
-- **Inherits middleware** from parent router/groups
-- **Prefix inheritance** - all routes inherit the group's path prefix
-- **Can create sub-groups** - supports nested grouping
-- **Use case**: When you need consistent behavior across multiple endpoints
+#### Recovery Middleware
+Catches panics and returns 500 Internal Server Error:
 
 ```go
-// All routes in this group inherit /api prefix and auth middleware
+r.Use(middleware.Recovery())
+
+// With custom handler
+r.Use(middleware.RecoveryWithHandler(func(w http.ResponseWriter, r *http.Request, err interface{}) {
+    w.WriteHeader(500)
+    w.Write([]byte(fmt.Sprintf("Panic: %v", err)))
+}))
+```
+
+#### CORS Middleware
+Handles Cross-Origin Resource Sharing:
+
+```go
+r.Use(middleware.CORS(middleware.AccessControlConfig{
+    AllowOrigin:      "*",
+    AllowCredentials: true,
+    AllowMethods:     []string{"GET", "POST", "PUT", "DELETE"},
+    AllowHeaders:     []string{"Authorization", "Content-Type"},
+    ExposeHeaders:    []string{"X-Total-Count"},
+    MaxAge:           86400,
+}))
+```
+
+#### Basic Auth Middleware
+HTTP Basic Authentication:
+
+```go
+users := []middleware.BasicAuthUser{
+    {Name: "admin", Password: "secret"},
+    {Name: "user", Password: "pass123"},
+}
+
+r.Use(middleware.BasicAuth(users))
+```
+
+#### Timeout Middleware
+Request timeout handling:
+
+```go
+r.Use(middleware.Timeout(30 * time.Second))
+```
+
+## Groups and Routes
+
+### Group - Inherits Middleware
+
+Groups inherit middleware from their parent and prefix all routes:
+
+```go
+r := bon.NewRouter()
+r.Use(middleware.Recovery())  // Global middleware
+
+// API group inherits Recovery
 api := r.Group("/api")
-api.Use(middleware.Auth())
+api.Use(middleware.BasicAuth(users))  // Group middleware
 
-api.Get("/users", handler)     // Path: /api/users (with auth)
-api.Get("/posts", handler)     // Path: /api/posts (with auth)
+// All routes inherit Recovery + BasicAuth
+api.Get("/users", listUsers)     // GET /api/users
+api.Post("/users", createUser)   // POST /api/users
 
-// Sub-groups inherit parent middleware
+// Nested group inherits all parent middleware
 v1 := api.Group("/v1")
-v1.Get("/users", handler)      // Path: /api/v1/users (with auth)
+v1.Get("/posts", listPosts)      // GET /api/v1/posts (Recovery + BasicAuth)
 ```
 
-#### Route
-- **Does NOT inherit middleware** - completely standalone
-- **No prefix inheritance** - must specify full path
-- **Cannot create sub-routes** - single endpoint only
-- **Use case**: When you need an isolated endpoint with different behavior
+### Route - Standalone
+
+Routes are completely independent and don't inherit any middleware:
 
 ```go
-// Route doesn't inherit any middleware from the router
-r.Use(middleware.Auth())       // Router middleware
+r := bon.NewRouter()
+r.Use(middleware.BasicAuth(users))  // Global middleware
 
-route := r.Route()
-route.Get("/public", handler)   // No auth - standalone route
+// This route is NOT affected by global middleware
+standalone := r.Route()
+standalone.Get("/public", handler)  // No auth required
 
-// Must add middleware explicitly if needed
-route.Use(middleware.CORS())
-route.Post("/webhook", handler) // Only CORS, no auth
-```
-
-## Examples
-
-### Basic Routing with Groups
-
-```go
-package main
-
-import (
-	"net/http"
-
-	"github.com/nissy/bon"
-	"github.com/nissy/bon/middleware"
-)
-
-func main() {
-	r := bon.NewRouter()
-
-	// Public API group with CORS
-	v := r.Group("/v1")
-	v.Use(
-		middleware.CORS(middleware.AccessControlConfig{
-			AllowOrigin:      "*",
-			AllowCredentials: false,
-			AllowMethods: []string{
-				http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete, http.MethodOptions,
-			},
-			AllowHeaders: []string{
-				"Authorization",
-			},
-			ExposeHeaders: []string{
-				"link",
-			},
-			MaxAge: 86400,
-		}),
-	)
-	v.Options("*", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusNoContent)
-	})
-	v.Get("/users/:name", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("Hello, " + bon.URLParam(r, "name")))
-	})
-
-	// Admin group with authentication
-	admin := r.Group("/admin")
-	admin.Use(
-		middleware.BasicAuth([]middleware.BasicAuthUser{
-			{
-				Name:     "admin",
-				Password: "secret",
-			},
-		}),
-	)
-	admin.Get("/users/:name", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("Admin: " + bon.URLParam(r, "name")))
-	})
-
-	http.ListenAndServe(":8080", r)
-}
-```
-
-### Middleware Inheritance Example
-
-```go
-package main
-
-import (
-	"fmt"
-	"net/http"
-
-	"github.com/nissy/bon"
-)
-
-// Custom middleware for demonstration
-func Logger(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Printf("Logger: %s %s\n", r.Method, r.URL.Path)
-		next.ServeHTTP(w, r)
-	})
-}
-
-func Auth(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Println("Auth: Checking credentials")
-		next.ServeHTTP(w, r)
-	})
-}
-
-func main() {
-	r := bon.NewRouter()
-	
-	// Router-level middleware - applies to all routes
-	r.Use(Logger)
-	
-	// Public routes group
-	public := r.Group("/public")
-	public.Get("/info", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("Public information"))
-	})
-	
-	// API group with auth
-	api := r.Group("/api")
-	api.Use(Auth) // Group middleware
-	
-	api.Get("/data", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("Protected data"))
-	})
-	
-	// Nested group inherits both Logger and Auth
-	v1 := api.Group("/v1")
-	v1.Get("/users", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("API v1 users"))
-	})
-	
-	// Standalone route - only has Logger, no Auth
-	route := r.Route()
-	route.Get("/standalone", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("Standalone route"))
-	})
-	
-	http.ListenAndServe(":8080", r)
-}
-```
-
-### Complex Routing Example
-
-```go
-package main
-
-import (
-	"net/http"
-	"time"
-
-	"github.com/nissy/bon"
-	"github.com/nissy/bon/middleware"
-)
-
-func main() {
-	r := bon.NewRouter()
-	
-	// Global middleware
-	r.Use(middleware.Timeout(30 * time.Second))
-	
-	// API v1 with CORS
-	v1 := r.Group("/api/v1")
-	v1.Use(middleware.CORS(middleware.AccessControlConfig{
-		AllowOrigin: "*",
-	}))
-	
-	// Public endpoints
-	v1.Get("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(`{"status":"ok"}`))
-	})
-	
-	// Protected endpoints
-	protected := v1.Group("/protected")
-	protected.Use(middleware.BasicAuth([]middleware.BasicAuthUser{
-		{Name: "user", Password: "pass"},
-	}))
-	
-	protected.Get("/users", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(`[{"id":1,"name":"John"}]`))
-	})
-	protected.Get("/users/:id", func(w http.ResponseWriter, r *http.Request) {
-		id := bon.URLParam(r, "id")
-		w.Write([]byte(`{"id":` + id + `,"name":"John"}`))
-	})
-	protected.Post("/users", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusCreated)
-		w.Write([]byte(`{"id":2,"name":"Jane"}`))
-	})
-	
-	// Admin area with different auth
-	admin := r.Group("/admin")
-	admin.Use(middleware.BasicAuth([]middleware.BasicAuthUser{
-		{Name: "admin", Password: "admin123"},
-	}))
-	
-	admin.Get("/stats", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(`{"users":100,"requests":5000}`))
-	})
-	
-	// Webhooks - standalone routes without global timeout
-	webhook := r.Route()
-	webhook.Post("/webhook/github", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("GitHub webhook received"))
-	})
-	webhook.Post("/webhook/stripe", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("Stripe webhook received"))
-	})
-	
-	http.ListenAndServe(":8080", r)
-}
-```
-
-## [Benchmarks](https://github.com/nissy/go-http-routing-benchmark)
-
-### [GitHub](http://developer.github.com/v3/)
-
-The GitHub API is rather large, consisting of 203 routes. The tasks are basically the same as in the benchmarks before.
-
-```
-Bon            10000     105265 ns/op     42753 B/op     167 allocs/op
+// Must explicitly add middleware if needed
+webhook := r.Route()
+webhook.Use(webhookMiddleware)
+webhook.Post("/webhook", handler)   // Only webhook validation, no auth
 ```
 
 ## HTTP Methods
 
-Bon supports all standard HTTP methods:
+All standard HTTP methods are supported:
 
 ```go
-r := bon.NewRouter()
-
-r.Get("/", handler)
+r.Get("/users", handler)
 r.Post("/users", handler)
 r.Put("/users/:id", handler)
 r.Delete("/users/:id", handler)
@@ -362,64 +242,41 @@ r.FileServer("/static", "./public")
 // With middleware
 r.FileServer("/assets", "./assets", 
     middleware.BasicAuth(users),
-    middleware.CORS(config),
+    middleware.CORS(corsConfig),
 )
 
-// Group with file server
+// In a group
 admin := r.Group("/admin")
-admin.Use(middleware.Auth())
+admin.Use(middleware.BasicAuth(adminUsers))
 admin.FileServer("/files", "./admin-files")
 ```
 
 Security features:
 - Path traversal protection (blocks `..`, `./`, etc.)
-- Hidden file protection (blocks `.` prefix files)
+- Hidden file protection (blocks `.` prefix files)  
 - Null byte protection
-- Directory listing disabled
+- Automatic index.html serving for directories
 
 ## Custom 404 Handler
 
 ```go
 r := bon.NewRouter()
 
-// Set custom NotFound handler
+// Method 1: Direct assignment
 r.NotFound = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-    w.WriteHeader(http.StatusNotFound)
     w.Header().Set("Content-Type", "application/json")
-    w.Write([]byte(`{"error":"route not found"}`))
+    w.WriteHeader(404)
+    w.Write([]byte(`{"error":"not found"}`))
 })
 
-// NotFound handler also respects global middleware
-r.Use(middleware.Logger())
-```
-
-## URL Parameters
-
-Access route parameters using `bon.URLParam`:
-
-```go
-// Single parameter
-r.Get("/users/:id", func(w http.ResponseWriter, r *http.Request) {
-    userID := bon.URLParam(r, "id")
-    w.Write([]byte("User ID: " + userID))
-})
-
-// Multiple parameters
-r.Get("/posts/:category/:id/comments/:commentId", func(w http.ResponseWriter, r *http.Request) {
-    category := bon.URLParam(r, "category")
-    postID := bon.URLParam(r, "id")
-    commentID := bon.URLParam(r, "commentId")
-    // ...
-})
-
-// Unicode parameter names
-r.Get("/users/:名前", func(w http.ResponseWriter, r *http.Request) {
-    name := bon.URLParam(r, "名前")
-    w.Write([]byte("Hello, " + name))
+// Method 2: Using SetNotFound (respects middleware)
+r.SetNotFound(func(w http.ResponseWriter, r *http.Request) {
+    w.WriteHeader(404)
+    w.Write([]byte("Custom 404 page"))
 })
 ```
 
-## Advanced Routing Examples
+## Examples
 
 ### RESTful API
 
@@ -429,8 +286,10 @@ package main
 import (
     "encoding/json"
     "net/http"
+    "time"
     
     "github.com/nissy/bon"
+    "github.com/nissy/bon/middleware"
 )
 
 type User struct {
@@ -441,17 +300,26 @@ type User struct {
 func main() {
     r := bon.NewRouter()
     
-    // RESTful routes
-    r.Get("/users", listUsers)
-    r.Post("/users", createUser)
-    r.Get("/users/:id", getUser)
-    r.Put("/users/:id", updateUser)
-    r.Delete("/users/:id", deleteUser)
+    // Global middleware
+    r.Use(middleware.Recovery())
+    r.Use(middleware.CORS(middleware.AccessControlConfig{
+        AllowOrigin: "*",
+    }))
+    
+    // API routes
+    api := r.Group("/api")
+    api.Use(middleware.Timeout(30 * time.Second))
+    
+    // User routes
+    api.Get("/users", listUsers)
+    api.Post("/users", createUser)
+    api.Get("/users/:id", getUser)
+    api.Put("/users/:id", updateUser)
+    api.Delete("/users/:id", deleteUser)
     
     // Nested resources
-    r.Get("/users/:userId/posts", getUserPosts)
-    r.Post("/users/:userId/posts", createUserPost)
-    r.Get("/users/:userId/posts/:postId", getUserPost)
+    api.Get("/users/:userId/posts", getUserPosts)
+    api.Post("/users/:userId/posts", createUserPost)
     
     http.ListenAndServe(":8080", r)
 }
@@ -465,13 +333,14 @@ func getUser(w http.ResponseWriter, r *http.Request) {
 }
 ```
 
-### Versioned API
+### API Versioning
 
 ```go
 package main
 
 import (
     "net/http"
+    "time"
     
     "github.com/nissy/bon"
     "github.com/nissy/bon/middleware"
@@ -485,32 +354,37 @@ func main() {
     v1.Use(middleware.CORS(middleware.AccessControlConfig{
         AllowOrigin: "*",
     }))
-    v1.Get("/users", v1Users)
-    v1.Get("/posts", v1Posts)
     
-    // API v2 with breaking changes
+    v1.Get("/users", v1ListUsers)
+    v1.Get("/posts", v1ListPosts)
+    
+    // API v2 with additional features
     v2 := r.Group("/api/v2")
     v2.Use(middleware.CORS(middleware.AccessControlConfig{
         AllowOrigin: "*",
     }))
     v2.Use(middleware.Timeout(30 * time.Second))
-    v2.Get("/users", v2Users)     // New response format
-    v2.Get("/posts", v2Posts)     // New fields
-    v2.Get("/comments", v2Comments) // New endpoint
+    
+    v2.Get("/users", v2ListUsers)     // New response format
+    v2.Get("/posts", v2ListPosts)     // Additional fields
+    v2.Get("/comments", v2ListComments) // New endpoint
+    
+    // Health check (version independent)
+    r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
+        w.Write([]byte(`{"status":"ok"}`))
+    })
     
     http.ListenAndServe(":8080", r)
 }
 ```
 
-### Microservice Gateway
+### Authentication Example
 
 ```go
 package main
 
 import (
     "net/http"
-    "net/http/httputil"
-    "net/url"
     
     "github.com/nissy/bon"
     "github.com/nissy/bon/middleware"
@@ -519,89 +393,83 @@ import (
 func main() {
     r := bon.NewRouter()
     
-    // Global middleware
-    r.Use(middleware.Logger())
-    r.Use(middleware.CORS(middleware.AccessControlConfig{
-        AllowOrigin: "*",
+    // Public endpoints
+    r.Get("/", homeHandler)
+    r.Get("/login", loginPageHandler)
+    r.Post("/login", loginHandler)
+    
+    // Protected API
+    api := r.Group("/api")
+    api.Use(middleware.BasicAuth([]middleware.BasicAuthUser{
+        {Name: "user", Password: "pass"},
     }))
     
-    // User service
-    userService := r.Group("/users")
-    userService.Use(createProxy("http://user-service:8081"))
-    userService.Handle("GET", "/*", nil)
-    userService.Handle("POST", "/*", nil)
-    userService.Handle("PUT", "/*", nil)
-    userService.Handle("DELETE", "/*", nil)
+    api.Get("/profile", profileHandler)
+    api.Get("/settings", settingsHandler)
     
-    // Order service
-    orderService := r.Group("/orders")
-    orderService.Use(createProxy("http://order-service:8082"))
-    orderService.Handle("GET", "/*", nil)
-    orderService.Handle("POST", "/*", nil)
+    // Admin area with different auth
+    admin := r.Group("/admin")
+    admin.Use(middleware.BasicAuth([]middleware.BasicAuthUser{
+        {Name: "admin", Password: "admin123"},
+    }))
     
-    // Static assets
-    r.FileServer("/assets", "./public")
+    admin.Get("/users", listAllUsers)
+    admin.Delete("/users/:id", deleteUser)
+    
+    // Webhooks - no auth but standalone
+    webhooks := r.Route()
+    webhooks.Post("/webhook/github", githubWebhook)
+    webhooks.Post("/webhook/stripe", stripeWebhook)
     
     http.ListenAndServe(":8080", r)
 }
-
-func createProxy(target string) bon.Middleware {
-    url, _ := url.Parse(target)
-    proxy := httputil.NewSingleHostReverseProxy(url)
-    
-    return func(next http.Handler) http.Handler {
-        return proxy
-    }
-}
 ```
-
-## Performance Tips
-
-1. **Route Order**: No need to worry about registration order - the router automatically prioritizes routes
-
-2. **Middleware**: Apply middleware at the appropriate level
-   - Router-level for global concerns (logging, recovery)
-   - Group-level for shared functionality (auth, CORS)
-   - Route-level for specific needs
-
-3. **Context Pool**: The router automatically pools context objects for parameter storage
-
-4. **Static Routes**: Use exact paths when possible for best performance
 
 ## Benchmarks
 
-### [GitHub API](http://developer.github.com/v3/)
-
-The GitHub API benchmark consists of 203 routes:
+Performance comparison using the GitHub API (203 routes):
 
 ```
-Bon            10000     105265 ns/op     42753 B/op     167 allocs/op
+BenchmarkBon-8        10000    105265 ns/op    42753 B/op    167 allocs/op
 ```
 
-Comparison with other routers:
+See [go-http-routing-benchmark](https://github.com/nissy/go-http-routing-benchmark) for detailed comparisons.
 
-```
-Beego           3000     464848 ns/op     74707 B/op     812 allocs/op
-Chi            10000     152969 ns/op     61714 B/op     406 allocs/op
-Denco          20000      62366 ns/op     20224 B/op     167 allocs/op
-GorillaMux       300    4686063 ns/op    215088 B/op    2272 allocs/op
-Gin           100000      22283 ns/op         0 B/op       0 allocs/op
-HttpRouter     30000      41143 ns/op     13792 B/op     167 allocs/op
-LARS           50000      22996 ns/op         0 B/op       0 allocs/op
-Possum         10000     212328 ns/op     84451 B/op     609 allocs/op
-Rivet          20000      72324 ns/op     16272 B/op     167 allocs/op
-Tango           5000     285607 ns/op     63834 B/op    1618 allocs/op
-Vulcan         10000     177044 ns/op     19894 B/op     609 allocs/op
-```
+## API Documentation
 
-## Installation
+For detailed API documentation, see [pkg.go.dev/github.com/nissy/bon](https://pkg.go.dev/github.com/nissy/bon).
+
+## Performance Tips
+
+1. **Route Registration**: Order doesn't matter - the router automatically optimizes
+2. **Middleware Placement**: Apply at the appropriate level for best performance
+3. **Static Routes**: Use exact paths when possible for fastest matching
+4. **Parameter Reuse**: The router pools context objects automatically
+
+## Requirements
+
+- Go 1.18 or higher
+
+## Testing
 
 ```bash
-go get github.com/nissy/bon
+# Run all tests
+go test ./...
+
+# Run tests with race detection
+go test -race ./...
+
+# Run benchmarks
+go test -bench=. ./...
 ```
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
 MIT
-[GoDoc]: https://godoc.org/github.com/nissy/bon
-[GoDoc Widget]: https://godoc.org/github.com/nissy/bon?status.svg
+
+[GoDoc]: https://pkg.go.dev/github.com/nissy/bon
+[GoDoc Widget]: https://pkg.go.dev/badge/github.com/nissy/bon
