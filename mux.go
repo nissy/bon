@@ -269,27 +269,29 @@ func (m *Mux) Handle(method, pattern string, handler http.Handler, middlewares .
 		}
 	}
 
-	// Store endpoint
-	idx := len(m.endpoints)
 	key := method + pattern
 
-	// Replace existing route if exists
+	// Use atomic operation to handle route registration
+	m.doubleArray.mu.Lock()
+	defer m.doubleArray.mu.Unlock()
+
+	// Check if route already exists
 	currentData := m.doubleArray.data.Load()
 	if existingIdx, exists := currentData.routes[key]; exists {
+		// Replace existing route
 		m.endpoints[existingIdx] = ep
-		// Update data by calling insert
-		m.doubleArray.insert(key, existingIdx)
+		m.doubleArray.insertLocked(key, existingIdx)
 		return
 	}
 
+	// Add new route
+	idx := len(m.endpoints)
 	m.endpoints = append(m.endpoints, ep)
-	m.doubleArray.insert(key, idx)
+	m.doubleArray.insertLocked(key, idx)
 }
 
-// Insert into double array trie
-func (dat *doubleArrayTrie) insert(key string, index int) {
-	dat.mu.Lock()
-	defer dat.mu.Unlock()
+// insertLocked inserts into double array trie (must be called with lock held)
+func (dat *doubleArrayTrie) insertLocked(key string, index int) {
 
 	// Get current data and create a copy
 	oldData := dat.data.Load()
@@ -497,8 +499,15 @@ func (m *Mux) lookup(r *http.Request) (*endpoint, *Context) {
 
 						// Setup parameters with capacity limit
 						if !m.setupContextParams(currentCtx, params, ep.paramKeys) {
-							// Too many parameters
+							// Too many parameters - skip this route
+							// Note: This will cause a 404 instead of an error
+							bestMatch = nil
+							bestScore = 0
 							bestCtx = nil
+							// Return context to pool
+							m.pool.Put(currentCtx.reset())
+							currentCtx = nil
+							continue
 						} else {
 							bestCtx = currentCtx
 						}
@@ -584,12 +593,17 @@ func (m *Mux) rebuildMiddlewareChains() {
 }
 
 func (m *Mux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// Fast path: check static routes first without defer or context allocation
+	// Fast path: check static routes first
 	data := m.doubleArray.data.Load()
 	key := r.Method + r.URL.Path
 
 	if idx, exists := data.staticMap[key]; exists {
-		// Direct execution for static routes - no allocations
+		// Add panic recovery for static routes
+		defer func() {
+			if err := recover(); err != nil {
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			}
+		}()
 		m.endpoints[idx].fullChain.ServeHTTP(w, r)
 		return
 	}

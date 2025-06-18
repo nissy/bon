@@ -9,9 +9,13 @@ import (
 
 // timeoutWriter wraps ResponseWriter to track write state
 type timeoutWriter struct {
-	http.ResponseWriter
+	w       http.ResponseWriter
 	written bool
 	mu      sync.Mutex
+}
+
+func (tw *timeoutWriter) Header() http.Header {
+	return tw.w.Header()
 }
 
 func (tw *timeoutWriter) WriteHeader(code int) {
@@ -19,7 +23,7 @@ func (tw *timeoutWriter) WriteHeader(code int) {
 	defer tw.mu.Unlock()
 	if !tw.written {
 		tw.written = true
-		tw.ResponseWriter.WriteHeader(code)
+		tw.w.WriteHeader(code)
 	}
 }
 
@@ -28,9 +32,15 @@ func (tw *timeoutWriter) Write(b []byte) (int, error) {
 	defer tw.mu.Unlock()
 	if !tw.written {
 		tw.written = true
-		tw.ResponseWriter.WriteHeader(http.StatusOK)
+		tw.w.WriteHeader(http.StatusOK)
 	}
-	return tw.ResponseWriter.Write(b)
+	return tw.w.Write(b)
+}
+
+// Unwrap returns the underlying ResponseWriter
+// This allows http.ResponseController to work correctly in Go 1.20+
+func (tw *timeoutWriter) Unwrap() http.ResponseWriter {
+	return tw.w
 }
 
 func Timeout(timeout time.Duration) func(next http.Handler) http.Handler {
@@ -39,7 +49,7 @@ func Timeout(timeout time.Duration) func(next http.Handler) http.Handler {
 			ctx, cancel := context.WithTimeout(r.Context(), timeout)
 			defer cancel()
 
-			tw := &timeoutWriter{ResponseWriter: w}
+			tw := &timeoutWriter{w: w}
 			done := make(chan struct{})
 			panicChan := make(chan interface{}, 1)
 			
@@ -70,9 +80,9 @@ func Timeout(timeout time.Duration) func(next http.Handler) http.Handler {
 				defer tw.mu.Unlock()
 				if !tw.written {
 					tw.written = true
-					tw.ResponseWriter.WriteHeader(http.StatusGatewayTimeout)
+					tw.w.WriteHeader(http.StatusGatewayTimeout)
 					// Write timeout message (ignore errors)
-					_, _ = tw.ResponseWriter.Write([]byte("Gateway Timeout"))
+					_, _ = tw.w.Write([]byte("Gateway Timeout"))
 				}
 				
 				// Wait for goroutine to complete (prevent leaks)

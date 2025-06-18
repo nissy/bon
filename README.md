@@ -6,6 +6,27 @@ Bon is a high-performance HTTP router for Go that uses a double array trie data 
 
 [![GoDoc Widget]][GoDoc] [![Go Report Card](https://goreportcard.com/badge/github.com/nissy/bon)](https://goreportcard.com/report/github.com/nissy/bon)
 
+## Table of Contents
+
+- [Features](#features)
+- [Quick Start](#quick-start)
+- [Installation](#installation)
+- [Route Patterns](#route-patterns)
+- [Middleware](#middleware)
+- [Groups and Routes](#groups-and-routes)
+- [HTTP Methods](#http-methods)
+- [File Server](#file-server)
+- [Custom 404 Handler](#custom-404-handler)
+- [WebSocket, SSE, and HTTP/2 Push Support](#websocket-sse-and-http2-push-support)
+- [Examples](#examples)
+- [Benchmarks](#benchmarks)
+- [API Documentation](#api-documentation)
+- [Performance Tips](#performance-tips)
+- [Requirements](#requirements)
+- [Testing](#testing)
+- [Contributing](#contributing)
+- [License](#license)
+
 ## Features
 
 - **High Performance**: Double array trie-based routing for optimal performance
@@ -18,6 +39,9 @@ Bon is a high-performance HTTP router for Go that uses a double array trie data 
 - **Context Pooling**: Efficient memory usage with sync.Pool
 - **Thread-Safe**: Lock-free reads using atomic operations
 - **Panic Recovery**: Built-in recovery middleware available
+- **WebSocket Ready**: Full support for WebSocket connections
+- **SSE Support**: Server-Sent Events with proper flushing
+- **HTTP/2 Push**: Server push support for modern browsers
 
 ## Quick Start
 
@@ -274,6 +298,220 @@ r.SetNotFound(func(w http.ResponseWriter, r *http.Request) {
     w.WriteHeader(404)
     w.Write([]byte("Custom 404 page"))
 })
+```
+
+## WebSocket, SSE, and HTTP/2 Push Support
+
+Bon supports WebSocket, Server-Sent Events (SSE), and HTTP/2 Push through Go's standard interfaces. When using middleware that wraps the ResponseWriter (like the Timeout middleware), you need to access the underlying ResponseWriter through the `Unwrap()` method.
+
+### WebSocket Support
+
+```go
+package main
+
+import (
+    "net/http"
+    "github.com/nissy/bon"
+    "github.com/nissy/bon/middleware"
+    "github.com/gorilla/websocket"
+)
+
+var upgrader = websocket.Upgrader{
+    CheckOrigin: func(r *http.Request) bool {
+        return true // Configure appropriately for production
+    },
+}
+
+func main() {
+    r := bon.NewRouter()
+    r.Use(middleware.Recovery())
+    
+    r.Get("/ws", func(w http.ResponseWriter, r *http.Request) {
+        // When using middleware that wraps ResponseWriter
+        var conn *websocket.Conn
+        var err error
+        
+        // Try direct upgrade first
+        conn, err = upgrader.Upgrade(w, r, nil)
+        if err != nil {
+            // If failed, try through Unwrap
+            if unwrapper, ok := w.(interface{ Unwrap() http.ResponseWriter }); ok {
+                conn, err = upgrader.Upgrade(unwrapper.Unwrap(), r, nil)
+            }
+            if err != nil {
+                http.Error(w, "WebSocket upgrade failed", http.StatusBadRequest)
+                return
+            }
+        }
+        defer conn.Close()
+        
+        // Handle WebSocket connection
+        for {
+            messageType, p, err := conn.ReadMessage()
+            if err != nil {
+                break
+            }
+            if err := conn.WriteMessage(messageType, p); err != nil {
+                break
+            }
+        }
+    })
+    
+    http.ListenAndServe(":8080", r)
+}
+```
+
+### Server-Sent Events (SSE) Support
+
+```go
+package main
+
+import (
+    "fmt"
+    "net/http"
+    "time"
+    "github.com/nissy/bon"
+    "github.com/nissy/bon/middleware"
+)
+
+func main() {
+    r := bon.NewRouter()
+    r.Use(middleware.Recovery())
+    r.Use(middleware.Timeout(30 * time.Second))
+    
+    r.Get("/events", func(w http.ResponseWriter, r *http.Request) {
+        // Set SSE headers
+        w.Header().Set("Content-Type", "text/event-stream")
+        w.Header().Set("Cache-Control", "no-cache")
+        w.Header().Set("Connection", "keep-alive")
+        
+        // Get flusher
+        var flusher http.Flusher
+        var ok bool
+        
+        // Try direct cast first
+        flusher, ok = w.(http.Flusher)
+        if !ok {
+            // Try through Unwrap
+            if unwrapper, ok := w.(interface{ Unwrap() http.ResponseWriter }); ok {
+                flusher, ok = unwrapper.Unwrap().(http.Flusher)
+            }
+            if !ok {
+                http.Error(w, "SSE not supported", http.StatusInternalServerError)
+                return
+            }
+        }
+        
+        // Send events
+        ticker := time.NewTicker(1 * time.Second)
+        defer ticker.Stop()
+        
+        for {
+            select {
+            case <-r.Context().Done():
+                return
+            case t := <-ticker.C:
+                fmt.Fprintf(w, "data: %s\n\n", t.Format(time.RFC3339))
+                flusher.Flush()
+            }
+        }
+    })
+    
+    http.ListenAndServe(":8080", r)
+}
+```
+
+### HTTP/2 Push Support
+
+```go
+package main
+
+import (
+    "net/http"
+    "github.com/nissy/bon"
+    "github.com/nissy/bon/middleware"
+)
+
+func main() {
+    r := bon.NewRouter()
+    r.Use(middleware.Recovery())
+    
+    r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+        // Get pusher
+        var pusher http.Pusher
+        var ok bool
+        
+        // Try direct cast first
+        pusher, ok = w.(http.Pusher)
+        if !ok {
+            // Try through Unwrap
+            if unwrapper, ok := w.(interface{ Unwrap() http.ResponseWriter }); ok {
+                pusher, ok = unwrapper.Unwrap().(http.Pusher)
+            }
+        }
+        
+        // Push resources if available
+        if pusher != nil {
+            // Push CSS and JS files
+            pusher.Push("/static/style.css", &http.PushOptions{
+                Header: http.Header{
+                    "Content-Type": []string{"text/css"},
+                },
+            })
+            pusher.Push("/static/app.js", &http.PushOptions{
+                Header: http.Header{
+                    "Content-Type": []string{"application/javascript"},
+                },
+            })
+        }
+        
+        // Serve main content
+        w.Header().Set("Content-Type", "text/html")
+        w.Write([]byte(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <link rel="stylesheet" href="/static/style.css">
+                <script src="/static/app.js"></script>
+            </head>
+            <body>
+                <h1>Hello with HTTP/2 Push!</h1>
+            </body>
+            </html>
+        `))
+    })
+    
+    // Serve static files
+    r.FileServer("/static", "./static")
+    
+    // Note: HTTP/2 requires TLS
+    http.ListenAndServeTLS(":8443", "cert.pem", "key.pem", r)
+}
+```
+
+### Using http.ResponseController (Go 1.20+)
+
+For Go 1.20 and later, you can use `http.ResponseController` which automatically handles the `Unwrap()` method:
+
+```go
+func sseHandler(w http.ResponseWriter, r *http.Request) {
+    rc := http.NewResponseController(w)
+    
+    w.Header().Set("Content-Type", "text/event-stream")
+    w.WriteHeader(http.StatusOK)
+    
+    for {
+        select {
+        case <-r.Context().Done():
+            return
+        case <-time.After(1 * time.Second):
+            fmt.Fprintf(w, "data: ping\n\n")
+            if err := rc.Flush(); err != nil {
+                return
+            }
+        }
+    }
+}
 ```
 
 ## Examples
