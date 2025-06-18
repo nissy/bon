@@ -99,8 +99,8 @@ r.Get("/posts/:category/:id", func(w http.ResponseWriter, r *http.Request) {
 })
 
 // Unicode parameter names are supported
-r.Get("/users/:名前", func(w http.ResponseWriter, r *http.Request) {
-    name := bon.URLParam(r, "名前")
+r.Get("/users/:name", func(w http.ResponseWriter, r *http.Request) {
+    name := bon.URLParam(r, "name")
     // Use name...
 })
 ```
