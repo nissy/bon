@@ -3,16 +3,23 @@ package bon
 import (
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"strings"
 	"testing"
 )
 
-// Custom ResponseWriter that doesn't allocate
-type nullResponseWriter struct{}
+// Using nullResponseWriter from bench_test.go
 
-func (n nullResponseWriter) Header() http.Header        { return http.Header{} }
-func (n nullResponseWriter) Write([]byte) (int, error) { return 0, nil }
-func (n nullResponseWriter) WriteHeader(int)           {}
+// Helper to measure allocations for a single operation
+func measureAllocs(t *testing.T, name string, fn func()) {
+	var m1, m2 runtime.MemStats
+	runtime.GC()
+	runtime.ReadMemStats(&m1)
+	fn()
+	runtime.ReadMemStats(&m2)
+	allocs := m2.Mallocs - m1.Mallocs
+	t.Logf("%s: %d allocations", name, allocs)
+}
 
 // Benchmark static route with minimal allocations
 func BenchmarkMuxStaticRouteMinimal(b *testing.B) {
@@ -20,7 +27,7 @@ func BenchmarkMuxStaticRouteMinimal(b *testing.B) {
 	r.Get("/api/v1/users", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 	
 	req := httptest.NewRequest("GET", "/api/v1/users", nil)
-	w := nullResponseWriter{}
+	w := &nullResponseWriter{}
 	
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -94,4 +101,162 @@ func BenchmarkStringBuilder(b *testing.B) {
 		key := builder.String()
 		_ = key
 	}
+}
+
+func TestAllocationsInServeHTTP(t *testing.T) {
+	r := NewRouter()
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	// Register routes
+	r.Get("/static", handler)
+	r.Get("/users/:id", handler)
+	r.Get("/files/*", handler)
+
+	t.Run("Static Route Allocations", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/static", nil)
+		w := httptest.NewRecorder()
+
+		// Warm up
+		r.ServeHTTP(w, req)
+
+		measureAllocs(t, "ServeHTTP for static route", func() {
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+		})
+	})
+
+	t.Run("Param Route Allocations", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/users/123", nil)
+		w := httptest.NewRecorder()
+
+		// Warm up
+		r.ServeHTTP(w, req)
+
+		measureAllocs(t, "ServeHTTP for param route", func() {
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+		})
+	})
+
+	t.Run("Wildcard Route Allocations", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/files/path/to/file.txt", nil)
+		w := httptest.NewRecorder()
+
+		// Warm up
+		r.ServeHTTP(w, req)
+
+		measureAllocs(t, "ServeHTTP for wildcard route", func() {
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+		})
+	})
+
+	t.Run("NotFound Route Allocations", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/notfound", nil)
+		w := httptest.NewRecorder()
+
+		// Warm up
+		r.ServeHTTP(w, req)
+
+		measureAllocs(t, "ServeHTTP for not found", func() {
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+		})
+	})
+}
+
+func TestSpecificAllocationSources(t *testing.T) {
+	r := NewRouter()
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	r.Get("/users/:id", handler)
+	req := httptest.NewRequest("GET", "/users/123", nil)
+
+	t.Run("httptest.NewRecorder allocations", func(t *testing.T) {
+		measureAllocs(t, "httptest.NewRecorder", func() {
+			_ = httptest.NewRecorder()
+		})
+	})
+
+	t.Run("lookup method allocations", func(t *testing.T) {
+		// Direct test of lookup
+		measureAllocs(t, "lookup method", func() {
+			ep, ctx := r.lookup(req)
+			if ctx != nil {
+				r.pool.Put(ctx.reset())
+			}
+			_ = ep
+		})
+	})
+
+	t.Run("WithContext allocations", func(t *testing.T) {
+		ctx := &Context{}
+		measureAllocs(t, "WithContext", func() {
+			_ = ctx.WithContext(req)
+		})
+	})
+
+	t.Run("String concatenation in lookup", func(t *testing.T) {
+		method := "GET"
+		path := "/users/123"
+		measureAllocs(t, "method + path concatenation", func() {
+			_ = method + path
+		})
+	})
+}
+
+func TestAllocationBreakdown(t *testing.T) {
+	// Test individual operations that might allocate
+	
+	t.Run("String concatenation patterns", func(t *testing.T) {
+		method := "GET"
+		path := "/users/123"
+		
+		// Test different string building approaches
+		measureAllocs(t, "Direct concatenation", func() {
+			_ = method + path
+		})
+		
+		measureAllocs(t, "Multiple concatenations", func() {
+			prefix := method + "/"
+			_ = prefix + "users/123"
+		})
+	})
+
+	t.Run("Slice operations", func(t *testing.T) {
+		measureAllocs(t, "Slice append", func() {
+			s := make([]string, 0, 4)
+			_ = append(s, "test")
+		})
+
+		measureAllocs(t, "Slice indexing", func() {
+			s := []string{"a", "b", "c"}
+			_ = s[1]
+		})
+	})
+
+	t.Run("Map operations", func(t *testing.T) {
+		m := make(map[string]int)
+		m["test"] = 1
+
+		measureAllocs(t, "Map lookup", func() {
+			_ = m["test"]
+		})
+
+		measureAllocs(t, "Map lookup with string concat key", func() {
+			_ = m["te"+"st"]
+		})
+	})
+
+	t.Run("Interface conversions", func(t *testing.T) {
+		var h http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})
+		
+		measureAllocs(t, "Interface to concrete type", func() {
+			_ = h.(http.HandlerFunc)
+		})
+	})
 }

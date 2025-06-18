@@ -72,6 +72,27 @@ bench: ## Run all benchmarks
 	@echo "Running benchmarks..."
 	go test -bench=. -benchmem ./...
 
+# Run benchmarks and save to bench.md
+bench-save: ## Run benchmarks and save results to bench.md
+	@echo "Running benchmarks and saving to bench.md..."
+	@echo "# Benchmark Results" > bench.md
+	@echo "" >> bench.md
+	@echo "Generated on: $$(date '+%Y-%m-%d %H:%M:%S')" >> bench.md
+	@echo "" >> bench.md
+	@echo "## System Information" >> bench.md
+	@echo "\`\`\`" >> bench.md
+	@echo "OS: $$(go env GOOS)" >> bench.md
+	@echo "Arch: $$(go env GOARCH)" >> bench.md
+	@echo "Go Version: $$(go version | awk '{print $$3}')" >> bench.md
+	@echo "CPU: $$(sysctl -n machdep.cpu.brand_string 2>/dev/null || grep -m 1 'model name' /proc/cpuinfo 2>/dev/null | cut -d: -f2 | xargs || echo 'Unknown')" >> bench.md
+	@echo "\`\`\`" >> bench.md
+	@echo "" >> bench.md
+	@echo "## Benchmark Results" >> bench.md
+	@echo "\`\`\`" >> bench.md
+	@go test -bench=. -benchmem ./... >> bench.md 2>&1
+	@echo "\`\`\`" >> bench.md
+	@echo "Benchmark results saved to bench.md"
+
 # Run specific benchmarks for comparison
 bench-compare: ## Run router benchmarks for comparison
 	@echo "Running router comparison benchmarks..."

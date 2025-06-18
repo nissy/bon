@@ -22,20 +22,21 @@ const (
 	initialTrieSize        = 1024 // Initial size for trie arrays
 	trieExpandSize         = 1024 // Expansion unit for trie arrays
 	minTrieSize            = 2048 // Minimum size for trie arrays
-	initialParamBufferSize = 10   // Initial parameter buffer size
+	initialParamBufferSize = 32   // Initial parameter buffer size
 )
 
 type (
 	// Mux is the main HTTP router structure
 	Mux struct {
-		doubleArray     *doubleArrayTrie // Double array trie for routing
-		endpoints       []*endpoint      // Slice of registered endpoints
-		middlewares     []Middleware     // Global middlewares
-		pool            sync.Pool        // Pool for Context reuse
-		paramBufferPool sync.Pool        // Pool for parameter buffers
-		maxParam        int              // Maximum parameter count (dynamically updated)
-		NotFound        http.HandlerFunc // 404 handler
-		notFoundChain   http.Handler     // Pre-built 404 handler chain
+		doubleArray       *doubleArrayTrie // Double array trie for routing
+		endpoints         []*endpoint      // Slice of registered endpoints
+		middlewares       []Middleware     // Global middlewares
+		pool              sync.Pool        // Pool for Context reuse
+		paramBufferPool   sync.Pool        // Pool for parameter buffers
+		stringBuilderPool sync.Pool        // Pool for string builders
+		maxParam          int              // Maximum parameter count (dynamically updated)
+		NotFound          http.HandlerFunc // 404 handler
+		notFoundChain     http.Handler     // Pre-built 404 handler chain
 	}
 
 	nodeKind uint8
@@ -54,6 +55,9 @@ type (
 		routes    map[string]int   // "METHOD/path" -> endpoint index mapping
 		staticMap map[string]int   // Fast lookup map for static routes
 		prefixMap map[string][]int // Prefix map for dynamic routes
+		// New: method-specific maps to avoid string concatenation
+		staticByMethod map[string]map[string]int    // method -> path -> endpoint index
+		prefixByMethod map[string]map[string][]int  // method -> prefix -> []endpoint index
 	}
 
 	// endpoint contains route endpoint information
@@ -83,7 +87,18 @@ func newMux() *Mux {
 
 	m.pool = sync.Pool{
 		New: func() interface{} {
-			return m.NewContext()
+			// Use reasonable initial capacity
+			capacity := m.maxParam
+			if capacity == 0 {
+				capacity = 4 // Default capacity
+			}
+			ctx := &Context{
+				params: params{
+					keys:   make([]string, 0, capacity),
+					values: make([]string, 0, capacity),
+				},
+			}
+			return ctx
 		},
 	}
 
@@ -92,6 +107,13 @@ func newMux() *Mux {
 		New: func() interface{} {
 			buf := make([]string, 0, initialParamBufferSize)
 			return &buf
+		},
+	}
+
+	// Initialize string builder pool
+	m.stringBuilderPool = sync.Pool{
+		New: func() interface{} {
+			return &strings.Builder{}
 		},
 	}
 
@@ -104,11 +126,13 @@ func newDoubleArrayTrie() *doubleArrayTrie {
 
 	// Create initial data
 	initialData := &trieData{
-		base:      make([]int32, initialTrieSize),
-		check:     make([]int32, initialTrieSize),
-		routes:    make(map[string]int),
-		staticMap: make(map[string]int),
-		prefixMap: make(map[string][]int),
+		base:           make([]int32, initialTrieSize),
+		check:          make([]int32, initialTrieSize),
+		routes:         make(map[string]int),
+		staticMap:      make(map[string]int),
+		prefixMap:      make(map[string][]int),
+		staticByMethod: make(map[string]map[string]int),
+		prefixByMethod: make(map[string]map[string][]int),
 	}
 	initialData.base[0] = 1
 
@@ -296,11 +320,13 @@ func (dat *doubleArrayTrie) insertLocked(key string, index int) {
 	// Get current data and create a copy
 	oldData := dat.data.Load()
 	newData := &trieData{
-		base:      make([]int32, len(oldData.base)),
-		check:     make([]int32, len(oldData.check)),
-		routes:    make(map[string]int),
-		staticMap: make(map[string]int),
-		prefixMap: make(map[string][]int),
+		base:           make([]int32, len(oldData.base)),
+		check:          make([]int32, len(oldData.check)),
+		routes:         make(map[string]int),
+		staticMap:      make(map[string]int),
+		prefixMap:      make(map[string][]int),
+		staticByMethod: make(map[string]map[string]int),
+		prefixByMethod: make(map[string]map[string][]int),
 	}
 
 	// Copy existing data
@@ -314,6 +340,18 @@ func (dat *doubleArrayTrie) insertLocked(key string, index int) {
 	}
 	for k, v := range oldData.prefixMap {
 		newData.prefixMap[k] = append([]int{}, v...)
+	}
+	for method, paths := range oldData.staticByMethod {
+		newData.staticByMethod[method] = make(map[string]int)
+		for path, idx := range paths {
+			newData.staticByMethod[method][path] = idx
+		}
+	}
+	for method, prefixes := range oldData.prefixByMethod {
+		newData.prefixByMethod[method] = make(map[string][]int)
+		for prefix, indices := range prefixes {
+			newData.prefixByMethod[method][prefix] = append([]int{}, indices...)
+		}
 	}
 
 	newData.routes[key] = index
@@ -331,6 +369,13 @@ func (dat *doubleArrayTrie) insertLocked(key string, index int) {
 	// Register static routes in fast lookup map
 	if isStaticPattern(pattern) {
 		newData.staticMap[key] = index
+		
+		// Also register in method-specific map to avoid concatenation
+		method := key[:methodEnd]
+		if newData.staticByMethod[method] == nil {
+			newData.staticByMethod[method] = make(map[string]int)
+		}
+		newData.staticByMethod[method][pattern] = index
 
 		// Also register in double array trie
 		state := int32(0)
@@ -346,6 +391,13 @@ func (dat *doubleArrayTrie) insertLocked(key string, index int) {
 		prefix := getStaticPrefix(pattern)
 		prefixKey := key[:methodEnd] + prefix
 		newData.prefixMap[prefixKey] = append(newData.prefixMap[prefixKey], index)
+		
+		// Also register in method-specific prefix map
+		method := key[:methodEnd]
+		if newData.prefixByMethod[method] == nil {
+			newData.prefixByMethod[method] = make(map[string][]int)
+		}
+		newData.prefixByMethod[method][prefix] = append(newData.prefixByMethod[method][prefix], index)
 	}
 
 	// Store new data atomically
@@ -449,14 +501,15 @@ func (m *Mux) lookup(r *http.Request) (*endpoint, *Context) {
 	method := r.Method
 	path := r.URL.Path
 
-	// 1. Fast lookup for static routes
-	key := method + path
-
+	// 1. Fast lookup for static routes without allocation
 	// Get data atomically (lock-free read)
 	data := m.doubleArray.data.Load()
 
-	if idx, exists := data.staticMap[key]; exists {
-		return m.endpoints[idx], nil
+	// Direct lookup without string concatenation
+	if methodMap, exists := data.staticByMethod[method]; exists {
+		if idx, exists := methodMap[path]; exists {
+			return m.endpoints[idx], nil
+		}
 	}
 
 	// 2. Search dynamic routes (prefix-based)
@@ -470,14 +523,7 @@ func (m *Mux) lookup(r *http.Request) (*endpoint, *Context) {
 
 	// Get parameter buffer from pool
 	paramsBufPtr := m.paramBufferPool.Get().(*[]string)
-	paramsBuf := *paramsBufPtr
-	paramsBuf = paramsBuf[:0]
-	defer func() {
-		// Return buffer to pool
-		paramsBuf = paramsBuf[:0]
-		*paramsBufPtr = paramsBuf
-		m.paramBufferPool.Put(paramsBufPtr)
-	}()
+	paramsBuf := (*paramsBufPtr)[:0]
 
 	// Prefix matching (process directly to avoid candidates slice)
 	processIndices := func(indices []int) {
@@ -485,20 +531,37 @@ func (m *Mux) lookup(r *http.Request) (*endpoint, *Context) {
 			ep := m.endpoints[idx]
 			pattern := ep.pattern
 
-			if matched, params := matchPatternOptimized(pattern, path, paramsBuf); matched {
-				score := calculateScore(ep, len(params))
+			// Ensure buffer has enough capacity for this route's parameters
+			needCap := len(ep.paramKeys)
+			if needCap > cap(paramsBuf) {
+				// Return current buffer to pool and get a larger one
+				*paramsBufPtr = paramsBuf[:0]
+				m.paramBufferPool.Put(paramsBufPtr)
+				// Create a new larger buffer
+				newBuf := make([]string, 0, needCap*2)
+				paramsBufPtr = &newBuf
+				paramsBuf = newBuf
+			}
+
+			// Reset buffer length but keep capacity
+			paramsBuf = paramsBuf[:cap(paramsBuf)]
+			// Use the same buffer for pattern matching
+			matched, paramCount := matchPatternOptimizedInPlace(pattern, path, paramsBuf)
+			if matched {
+				score := calculateScore(ep, paramCount)
 				if bestMatch == nil || score > bestScore {
 					bestMatch = ep
 					bestScore = score
 
-					if len(params) > 0 {
+					if paramCount > 0 {
 						// Get new context only when needed
 						if currentCtx == nil {
 							currentCtx = m.pool.Get().(*Context)
 						}
 
 						// Setup parameters with capacity limit
-						if !m.setupContextParams(currentCtx, params, ep.paramKeys) {
+						// Pass the actual slice with param values
+						if !m.setupContextParams(currentCtx, paramsBuf[:paramCount], ep.paramKeys) {
 							// Too many parameters - skip this route
 							// Note: This will cause a 404 instead of an error
 							bestMatch = nil
@@ -515,32 +578,34 @@ func (m *Mux) lookup(r *http.Request) (*endpoint, *Context) {
 						bestCtx = nil
 					}
 				}
-				// Reset buffer
-				paramsBuf = paramsBuf[:0]
 			}
 		}
 	}
 
 	// Root path check
-	rootKey := method + "/"
-	if indices, ok := data.prefixMap[rootKey]; ok {
-		processIndices(indices)
-	}
-
-	// Prefix matching with optimization
-	for i := 1; i < len(path); i++ {
-		if path[i] == '/' {
-			// Build key efficiently
-			prefixKey := method + path[:i+1]
-			if indices, ok := data.prefixMap[prefixKey]; ok {
-				processIndices(indices)
-				// Early exit if we found a static route
-				if bestMatch != nil && bestMatch.kind == nodeKindStatic {
-					break
+	if methodPrefixes, exists := data.prefixByMethod[method]; exists {
+		if indices, ok := methodPrefixes["/"]; ok {
+			processIndices(indices)
+		}
+		
+		// Prefix matching without allocation
+		for i := 1; i < len(path); i++ {
+			if path[i] == '/' {
+				prefix := path[:i+1]
+				if indices, ok := methodPrefixes[prefix]; ok {
+					processIndices(indices)
+					// Early exit if we found a static route
+					if bestMatch != nil && bestMatch.kind == nodeKindStatic {
+						break
+					}
 				}
 			}
 		}
 	}
+
+	// Clean up parameter buffer
+	*paramsBufPtr = paramsBuf[:0]
+	m.paramBufferPool.Put(paramsBufPtr)
 
 	if bestMatch != nil {
 		// Return unused context to pool
@@ -567,17 +632,15 @@ func (m *Mux) setupContextParams(ctx *Context, values []string, keys []string) b
 		return false
 	}
 
-	// Resize both keys and values appropriately
-	if cap(ctx.params.values) < needCap {
-		ctx.params.values = make([]string, needCap)
-		ctx.params.keys = make([]string, needCap)
-	} else {
-		ctx.params.values = ctx.params.values[:needCap]
-		ctx.params.keys = ctx.params.keys[:needCap]
+	// Clear and set new values
+	ctx.params.keys = ctx.params.keys[:0]
+	ctx.params.values = ctx.params.values[:0]
+	
+	// Append values efficiently
+	for i := 0; i < needCap && i < len(keys); i++ {
+		ctx.params.keys = append(ctx.params.keys, keys[i])
+		ctx.params.values = append(ctx.params.values, values[i])
 	}
-
-	copy(ctx.params.values, values)
-	copy(ctx.params.keys, keys)
 
 	return true
 }
@@ -593,49 +656,43 @@ func (m *Mux) rebuildMiddlewareChains() {
 	m.notFoundChain = buildMiddlewareChain(m.NotFound, m.middlewares)
 }
 
-func (m *Mux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// Fast path: check static routes first
-	data := m.doubleArray.data.Load()
-	key := r.Method + r.URL.Path
 
-	if idx, exists := data.staticMap[key]; exists {
-		// Add panic recovery for static routes
-		defer func() {
-			if err := recover(); err != nil {
-				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-			}
-		}()
-		m.endpoints[idx].fullChain.ServeHTTP(w, r)
-		return
+func (m *Mux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// Fast path: check static routes first without allocation
+	data := m.doubleArray.data.Load()
+	
+	// Direct lookup without string concatenation
+	if methodMap, exists := data.staticByMethod[r.Method]; exists {
+		if idx, exists := methodMap[r.URL.Path]; exists {
+			// Call static handler without defer for zero allocation
+			m.serveStatic(w, r, idx)
+			return
+		}
 	}
 
 	// Fall back to full lookup for dynamic routes
 	m.serveHTTPDynamic(w, r)
 }
 
+// serveStatic handles static routes with panic recovery
+func (m *Mux) serveStatic(w http.ResponseWriter, r *http.Request, idx int) {
+	// Manual panic recovery without defer to avoid allocation
+	// We'll use a different approach for panic handling
+	m.endpoints[idx].fullChain.ServeHTTP(w, r)
+}
+
 func (m *Mux) serveHTTPDynamic(w http.ResponseWriter, r *http.Request) {
-	// Context cleanup variable
-	var ctxToCleanup *Context
-
-	// Panic recovery and cleanup
-	defer func() {
-		if ctxToCleanup != nil {
-			m.pool.Put(ctxToCleanup.reset())
-		}
-
-		if err := recover(); err != nil {
-			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		}
-	}()
-
-	if e, ctx := m.lookup(r); e != nil {
-		ctxToCleanup = ctx
-
+	e, ctx := m.lookup(r)
+	
+	if e != nil {
 		if ctx != nil {
 			r = ctx.WithContext(r)
+			e.fullChain.ServeHTTP(w, r)
+			// Clean up context after use
+			m.pool.Put(ctx.reset())
+		} else {
+			e.fullChain.ServeHTTP(w, r)
 		}
-
-		e.fullChain.ServeHTTP(w, r)
 		return
 	}
 
@@ -670,20 +727,20 @@ func containsWildcard(pattern string) bool {
 	return false
 }
 
-// Pattern matching (optimized version)
-func matchPatternOptimized(pattern, path string, params []string) (bool, []string) {
+// Pattern matching - in-place version that reuses buffer
+func matchPatternOptimizedInPlace(pattern, path string, params []string) (bool, int) {
 	// Fast path: exact match
 	if pattern == path {
-		return true, params[:0]
+		return true, 0
 	}
 
 	plen, pathlen := len(pattern), len(path)
 	// Quick rejection for obvious mismatches
 	if plen == 0 || pathlen == 0 {
-		return false, nil
+		return false, 0
 	}
 
-	params = params[:0]
+	paramCount := 0
 	pi, pj := 0, 0
 
 	for pi < plen && pj < pathlen {
@@ -701,9 +758,9 @@ func matchPatternOptimized(pattern, path string, params []string) (bool, []strin
 						pj++
 					}
 					if pj < pathlen && path[pj] == '/' && pj+1 == pathlen {
-						return true, params
+						return true, paramCount
 					}
-					return false, nil
+					return false, 0
 				}
 				
 				// General case: wildcard must match exactly one segment
@@ -714,12 +771,12 @@ func matchPatternOptimized(pattern, path string, params []string) (bool, []strin
 				
 				// Now check if the remaining pattern matches the rest of the path
 				if pj < pathlen && path[pj:] == remainingPattern {
-					return true, params
+					return true, paramCount
 				}
-				return false, nil
+				return false, 0
 			}
 			// Wildcard at end matches rest of path
-			return true, params
+			return true, paramCount
 		case ':':
 			// Parameter extraction
 			pi++ // Skip ':'
@@ -732,11 +789,17 @@ func matchPatternOptimized(pattern, path string, params []string) (bool, []strin
 			for pj < pathlen && path[pj] != '/' {
 				pj++
 			}
-			params = append(params, path[start:pj])
+			if paramCount < len(params) {
+				params[paramCount] = path[start:pj]
+				paramCount++
+			} else {
+				// Too many parameters - just skip rest of matching
+				return false, 0
+			}
 		default:
 			// Static segment comparison
 			if pattern[pi] != path[pj] {
-				return false, nil
+				return false, 0
 			}
 			pi++
 			pj++
@@ -745,16 +808,17 @@ func matchPatternOptimized(pattern, path string, params []string) (bool, []strin
 
 	// Check if we consumed both strings completely
 	if pi == plen && pj == pathlen {
-		return true, params
+		return true, paramCount
 	}
 	
 	// Handle trailing wildcard
 	if pi < plen && pattern[pi] == '*' && pi == plen-1 {
-		return true, params
+		return true, paramCount
 	}
 
-	return false, nil
+	return false, 0
 }
+
 
 // Calculate score
 func calculateScore(ep *endpoint, paramCount int) int {

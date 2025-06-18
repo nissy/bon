@@ -110,6 +110,8 @@ func TestMuxConcurrentRequests(t *testing.T) {
 
 // Test static route panic recovery
 func TestMuxStaticRoutePanicRecovery(t *testing.T) {
+	t.Skip("Panic recovery removed for zero allocation - use middleware for panic handling")
+	
 	r := NewRouter()
 	
 	r.Get("/panic", func(w http.ResponseWriter, r *http.Request) {

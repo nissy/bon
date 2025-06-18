@@ -22,18 +22,6 @@ type (
 	}
 )
 
-func (m *Mux) NewContext() *Context {
-	maxParam := m.maxParam
-	if maxParam < 4 {
-		maxParam = 4
-	}
-	return &Context{
-		params: params{
-			keys:   make([]string, 0, maxParam),
-			values: make([]string, 0, maxParam),
-		},
-	}
-}
 
 // allocate
 func (ctx *Context) WithContext(r *http.Request) *http.Request {
@@ -43,13 +31,7 @@ func (ctx *Context) WithContext(r *http.Request) *http.Request {
 }
 
 func (ctx *Context) reset() *Context {
-	// Clear slices - set length to 0 and remove references
-	for i := range ctx.params.keys {
-		ctx.params.keys[i] = ""
-	}
-	for i := range ctx.params.values {
-		ctx.params.values[i] = ""
-	}
+	// Just reset lengths - no need to clear strings
 	ctx.params.keys = ctx.params.keys[:0]
 	ctx.params.values = ctx.params.values[:0]
 	return ctx
