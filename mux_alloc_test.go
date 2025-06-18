@@ -27,7 +27,7 @@ func BenchmarkMuxStaticRouteMinimal(b *testing.B) {
 	r.Get("/api/v1/users", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 	
 	req := httptest.NewRequest("GET", "/api/v1/users", nil)
-	w := &nullResponseWriter{}
+	w := nullResponseWriter{}
 	
 	b.ResetTimer()
 	b.ReportAllocs()

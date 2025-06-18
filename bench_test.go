@@ -6,29 +6,14 @@ import (
 	"testing"
 )
 
-// nullResponseWriter for benchmarks to avoid httptest.NewRecorder overhead
-type nullResponseWriter struct {
-	headers http.Header
-}
-
-func (w *nullResponseWriter) Header() http.Header {
-	if w.headers == nil {
-		w.headers = make(http.Header)
-	}
-	return w.headers
-}
-
-func (w *nullResponseWriter) Write([]byte) (int, error) { return 0, nil }
-func (w *nullResponseWriter) WriteHeader(int)           {}
-
-// minimalNullWriter is a truly zero-allocation ResponseWriter
-type minimalNullWriter struct{}
+// nullResponseWriter is a minimal ResponseWriter for benchmarking
+type nullResponseWriter struct{}
 
 var emptyHeader = make(http.Header)
 
-func (minimalNullWriter) Header() http.Header        { return emptyHeader }
-func (minimalNullWriter) Write([]byte) (int, error) { return 0, nil }
-func (minimalNullWriter) WriteHeader(int)           {}
+func (nullResponseWriter) Header() http.Header        { return emptyHeader }
+func (nullResponseWriter) Write([]byte) (int, error) { return 0, nil }
+func (nullResponseWriter) WriteHeader(int)           {}
 
 func BenchmarkMuxStaticRoute(b *testing.B) {
 	r := NewRouter()
@@ -43,7 +28,7 @@ func BenchmarkMuxStaticRoute(b *testing.B) {
 	}
 
 	req, _ := http.NewRequest("GET", "/static/path/50", nil)
-	w := minimalNullWriter{}
+	w := nullResponseWriter{}
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -66,7 +51,7 @@ func BenchmarkMuxParamRoute(b *testing.B) {
 	r.Get("/api/v1/resources/:resourceId/items/:itemId", handler)
 
 	req, _ := http.NewRequest("GET", "/api/v1/resources/123/items/456", nil)
-	w := minimalNullWriter{}
+	w := nullResponseWriter{}
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -88,7 +73,7 @@ func BenchmarkMuxWildcardRoute(b *testing.B) {
 	r.Get("/static/*", handler)
 
 	req, _ := http.NewRequest("GET", "/files/path/to/deep/nested/file.txt", nil)
-	w := minimalNullWriter{}
+	w := nullResponseWriter{}
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -122,7 +107,7 @@ func BenchmarkMuxMixed(b *testing.B) {
 		mustNewRequest("GET", "/static/css/main.css"),
 	}
 
-	w := minimalNullWriter{}
+	w := nullResponseWriter{}
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -153,7 +138,7 @@ func BenchmarkMuxNotFound(b *testing.B) {
 	r.Get("/api/*", handler)
 
 	req, _ := http.NewRequest("GET", "/notfound/path", nil)
-	w := minimalNullWriter{}
+	w := nullResponseWriter{}
 
 	b.ResetTimer()
 	b.ReportAllocs()

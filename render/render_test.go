@@ -262,19 +262,19 @@ type nullResponseWriter struct {
 	body    []byte
 }
 
-func (w *nullResponseWriter) Header() http.Header {
+func (w nullResponseWriter) Header() http.Header {
 	if w.headers == nil {
 		w.headers = make(http.Header)
 	}
 	return w.headers
 }
 
-func (w *nullResponseWriter) Write(b []byte) (int, error) {
-	w.body = append(w.body, b...)
+func (w nullResponseWriter) Write(b []byte) (int, error) {
+	// Discard body for benchmarking
 	return len(b), nil
 }
 
-func (w *nullResponseWriter) WriteHeader(int) {}
+func (w nullResponseWriter) WriteHeader(int) {}
 
 func (w *nullResponseWriter) Reset() {
 	w.body = w.body[:0]
@@ -285,7 +285,7 @@ func (w *nullResponseWriter) Reset() {
 
 func BenchmarkJSON(b *testing.B) {
 	data := testStruct{Name: "benchmark", Value: 999}
-	w := &nullResponseWriter{}
+	w := nullResponseWriter{}
 	
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -298,7 +298,7 @@ func BenchmarkJSON(b *testing.B) {
 
 func BenchmarkXML(b *testing.B) {
 	data := testStruct{Name: "benchmark", Value: 999}
-	w := &nullResponseWriter{}
+	w := nullResponseWriter{}
 	
 	b.ResetTimer()
 	b.ReportAllocs()

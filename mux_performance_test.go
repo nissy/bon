@@ -117,7 +117,7 @@ func BenchmarkRouteLookup(b *testing.B) {
 			}
 			
 			req := httptest.NewRequest(http.MethodGet, tt.requestPath, nil)
-			w := &nullResponseWriter{}
+			w := nullResponseWriter{}
 			
 			b.ResetTimer()
 			b.ReportAllocs()
@@ -187,7 +187,7 @@ func BenchmarkMiddlewareChain(b *testing.B) {
 			}
 			
 			req := httptest.NewRequest(http.MethodGet, "/route0", nil)
-			w := &nullResponseWriter{}
+			w := nullResponseWriter{}
 			
 			b.ResetTimer()
 			b.ReportAllocs()
@@ -246,7 +246,7 @@ func BenchmarkComplexRouting(b *testing.B) {
 		reqs[i] = httptest.NewRequest(http.MethodGet, path, nil)
 	}
 	
-	w := &nullResponseWriter{}
+	w := nullResponseWriter{}
 	
 	b.ResetTimer()
 	b.ReportAllocs()

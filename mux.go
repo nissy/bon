@@ -33,7 +33,6 @@ type (
 		middlewares       []Middleware     // Global middlewares
 		pool              sync.Pool        // Pool for Context reuse
 		paramBufferPool   sync.Pool        // Pool for parameter buffers
-		stringBuilderPool sync.Pool        // Pool for string builders
 		maxParam          int              // Maximum parameter count (dynamically updated)
 		NotFound          http.HandlerFunc // 404 handler
 		notFoundChain     http.Handler     // Pre-built 404 handler chain
@@ -110,12 +109,6 @@ func newMux() *Mux {
 		},
 	}
 
-	// Initialize string builder pool
-	m.stringBuilderPool = sync.Pool{
-		New: func() interface{} {
-			return &strings.Builder{}
-		},
-	}
 
 	return m
 }
@@ -674,10 +667,9 @@ func (m *Mux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	m.serveHTTPDynamic(w, r)
 }
 
-// serveStatic handles static routes with panic recovery
+// serveStatic handles static routes without panic recovery for zero allocation.
+// IMPORTANT: Use middleware.Recovery() for panic handling in production.
 func (m *Mux) serveStatic(w http.ResponseWriter, r *http.Request, idx int) {
-	// Manual panic recovery without defer to avoid allocation
-	// We'll use a different approach for panic handling
 	m.endpoints[idx].fullChain.ServeHTTP(w, r)
 }
 
