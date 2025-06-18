@@ -11,21 +11,24 @@ import (
 	"github.com/nissy/bon/middleware"
 )
 
-// パニックリカバリーのテスト
+// Test panic recovery
 func TestMuxPanicRecovery(t *testing.T) {
 	r := NewRouter()
 	
-	// パニックを起こすハンドラー
+	// Add recovery middleware
+	r.Use(middleware.Recovery())
+	
+	// Handler that causes panic
 	r.Get("/panic", func(w http.ResponseWriter, r *http.Request) {
 		panic("test panic in handler")
 	})
 	
-	// 正常なハンドラー
+	// Normal handler
 	r.Get("/normal", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("OK"))
 	})
 	
-	// パニックテスト
+	// Test panic
 	req1 := httptest.NewRequest("GET", "/panic", nil)
 	rec1 := httptest.NewRecorder()
 	r.ServeHTTP(rec1, req1)
@@ -38,7 +41,7 @@ func TestMuxPanicRecovery(t *testing.T) {
 		t.Errorf("Expected 'Internal Server Error', got %s", rec1.Body.String())
 	}
 	
-	// 正常なリクエストが動作することを確認
+	// Verify normal requests still work
 	req2 := httptest.NewRequest("GET", "/normal", nil)
 	rec2 := httptest.NewRecorder()
 	r.ServeHTTP(rec2, req2)
@@ -48,14 +51,14 @@ func TestMuxPanicRecovery(t *testing.T) {
 	}
 }
 
-// テスト用のコンテキストキー型
+// Context key type for testing
 type testCtxKey string
 
-// ミドルウェアでのコンテキスト伝播のテスト（修正版）
+// Test context propagation in middleware (fixed version)
 func TestMiddlewareContextPropagationFixed(t *testing.T) {
 	r := NewRouter()
 	
-	// コンテキストに値を設定するミドルウェア
+	// Middleware that sets values in context
 	contextMiddleware := func(key, value string) func(http.Handler) http.Handler {
 		return func(next http.Handler) http.Handler {
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -86,7 +89,7 @@ func TestMiddlewareContextPropagationFixed(t *testing.T) {
 	}
 }
 
-// CORSミドルウェアの条件付きヘッダーテスト
+// Test conditional headers in CORS middleware
 func TestCORSConditionalHeaders(t *testing.T) {
 	tests := []struct {
 		name               string
@@ -134,10 +137,10 @@ func TestCORSConditionalHeaders(t *testing.T) {
 				_, _ = w.Write([]byte("OK"))
 			})
 			
-			// OPTIONSメソッドも登録（CORSプリフライト用）
+			// Also register OPTIONS method (for CORS preflight)
 			r.Handle("OPTIONS", "/test", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				// CORSミドルウェアが処理するので、ここには到達しないはず
-				// もし到達した場合はエラー
+				// CORS middleware should handle this, so we shouldn't reach here
+				// Error if we reach here
 				w.WriteHeader(http.StatusInternalServerError)
 				_, _ = w.Write([]byte("Should not reach here"))
 			}))
@@ -150,7 +153,7 @@ func TestCORSConditionalHeaders(t *testing.T) {
 				t.Errorf("Expected status %d, got %d", tt.expectedStatus, rec.Code)
 			}
 			
-			// OPTIONSリクエストの場合、CORSヘッダーが設定されているか確認
+			// For OPTIONS requests, check if CORS headers are set
 			if tt.method == "OPTIONS" {
 				originHeader := rec.Header().Get("Access-Control-Allow-Origin")
 				if originHeader != "*" {
@@ -168,20 +171,20 @@ func TestCORSConditionalHeaders(t *testing.T) {
 	}
 }
 
-// Timeoutミドルウェアのgoroutineリーク防止テスト
+// Test goroutine leak prevention in Timeout middleware
 func TestTimeoutNoGoroutineLeak(t *testing.T) {
 	r := NewRouter()
 	
-	// 100msのタイムアウト
+	// 100ms timeout
 	r.Use(middleware.Timeout(100 * time.Millisecond))
 	
-	// 長時間かかるハンドラー
+	// Long-running handler
 	r.Get("/slow", func(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-time.After(200 * time.Millisecond):
 			_, _ = w.Write([]byte("Should not reach here"))
 		case <-r.Context().Done():
-			// コンテキストがキャンセルされたら終了
+			// Exit when context is canceled
 			return
 		}
 	})
@@ -189,8 +192,8 @@ func TestTimeoutNoGoroutineLeak(t *testing.T) {
 	req := httptest.NewRequest("GET", "/slow", nil)
 	rec := httptest.NewRecorder()
 	
-	// goroutineの数を記録
-	// 実際のテストではruntime.NumGoroutineを使用
+	// Record goroutine count
+	// In actual test, use runtime.NumGoroutine
 	
 	r.ServeHTTP(rec, req)
 	
@@ -198,20 +201,20 @@ func TestTimeoutNoGoroutineLeak(t *testing.T) {
 		t.Errorf("Expected status %d, got %d", http.StatusGatewayTimeout, rec.Code)
 	}
 	
-	// タイムアウト後、少し待ってgoroutineが終了することを確認
+	// Wait a bit after timeout to verify goroutine termination
 	time.Sleep(300 * time.Millisecond)
 	
-	// 実際のテストではここでgoroutine数を再度チェック
+	// In actual test, check goroutine count again here
 }
 
-// ファイルサーバーのセキュリティテスト
+// File server security test
 func TestFileServerSecurity(t *testing.T) {
-	// テスト用の一時ディレクトリを作成
+	// Create temporary directory for testing
 	tempDir := t.TempDir()
-	_ = tempDir // 将来の使用のために保持
+	_ = tempDir // Keep for future use
 	
-	// ファイルサーバーのセキュリティは file.go の resolveFilePath メソッドでテスト済み
-	// ここでは統合テストのプレースホルダーとして残す
+	// File server security is tested in file.go's resolveFilePath method
+	// Keep here as placeholder for integration test
 	
 	tests := []struct {
 		name           string
@@ -221,7 +224,7 @@ func TestFileServerSecurity(t *testing.T) {
 		{
 			name:           "Normal file",
 			path:           "/static/test.txt",
-			expectedStatus: 404, // ファイルが存在しない
+			expectedStatus: 404, // File doesn't exist
 		},
 		{
 			name:           "Directory traversal attempt",
@@ -237,13 +240,13 @@ func TestFileServerSecurity(t *testing.T) {
 	
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// 実際のテストでは、ファイルサーバーのエンドポイントをテスト
-			// 現在はスキップ
+			// In actual test, test file server endpoint
+			// Currently skipped
 		})
 	}
 }
 
-// 複数のミドルウェアの順序と伝播のテスト
+// Test multiple middleware order and propagation
 func TestMiddlewareChainOrder(t *testing.T) {
 	r := NewRouter()
 	
@@ -251,7 +254,7 @@ func TestMiddlewareChainOrder(t *testing.T) {
 	
 	type mwKey string
 	
-	// ミドルウェア1
+	// Middleware 1
 	mw1 := func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			order = append(order, "MW1-before")
@@ -261,11 +264,11 @@ func TestMiddlewareChainOrder(t *testing.T) {
 		})
 	}
 	
-	// ミドルウェア2
+	// Middleware 2
 	mw2 := func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			order = append(order, "MW2-before")
-			// MW1の値が取得できることを確認
+			// Verify MW1 value is accessible
 			if val := r.Context().Value(mwKey("mw1")); val != "value1" {
 				t.Errorf("MW1 context value not found in MW2")
 			}
@@ -280,7 +283,7 @@ func TestMiddlewareChainOrder(t *testing.T) {
 	
 	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
 		order = append(order, "Handler")
-		// 両方のミドルウェアの値が取得できることを確認
+		// Verify both middleware values are accessible
 		if val := r.Context().Value(mwKey("mw1")); val != "value1" {
 			t.Errorf("MW1 context value not found in handler")
 		}
@@ -290,7 +293,7 @@ func TestMiddlewareChainOrder(t *testing.T) {
 		_, _ = w.Write([]byte("OK"))
 	})
 	
-	order = []string{} // リセット
+	order = []string{} // Reset
 	
 	req := httptest.NewRequest("GET", "/test", nil)
 	rec := httptest.NewRecorder()

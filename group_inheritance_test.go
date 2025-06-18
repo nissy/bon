@@ -5,24 +5,24 @@ import (
 	"testing"
 )
 
-// Groupがグローバルミドルウェアを継承しないことを確認するテスト
+// Test to confirm that Group does not inherit global middleware
 func TestGroupDoesNotInheritGlobalMiddleware(t *testing.T) {
 	r := NewRouter()
 	
-	// グローバルミドルウェアを設定
+	// Set global middleware
 	r.Use(WriteMiddleware("GLOBAL"))
 	
-	// Groupを作成（グローバルミドルウェアは継承しない）
+	// Create Group (does not inherit global middleware)
 	g := r.Group("/api")
 	g.Use(WriteMiddleware("-GROUP"))
 	
-	// Groupからエンドポイントを登録
+	// Register endpoint from Group
 	g.Get("/test", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("-HANDLER"))
 	})
 	
-	// グローバルミドルウェアはServeHTTPで適用されるため、
-	// 実際の出力にはGLOBALが含まれる
+	// Since global middleware is applied in ServeHTTP,
+	// the actual output includes GLOBAL
 	if err := Verify(r, []*Want{
 		{"/api/test", 200, "GLOBAL-GROUP-HANDLER"},
 	}); err != nil {
@@ -30,22 +30,22 @@ func TestGroupDoesNotInheritGlobalMiddleware(t *testing.T) {
 	}
 }
 
-// ネストしたGroupが親のミドルウェアのみを継承することを確認
+// Test to confirm that nested Groups only inherit parent middleware
 func TestNestedGroupInheritance(t *testing.T) {
 	r := NewRouter()
 	
-	// グローバルミドルウェア
+	// Global middleware
 	r.Use(WriteMiddleware("GLOBAL"))
 	
-	// レベル1のGroup
+	// Level 1 Group
 	g1 := r.Group("/api")
 	g1.Use(WriteMiddleware("-API"))
 	
-	// レベル2のGroup（g1のミドルウェアのみ継承）
+	// Level 2 Group (inherits only g1's middleware)
 	g2 := g1.Group("/v1")
 	g2.Use(WriteMiddleware("-V1"))
 	
-	// レベル3のGroup（g2のミドルウェアのみ継承）
+	// Level 3 Group (inherits only g2's middleware)
 	g3 := g2.Group("/users")
 	g3.Use(WriteMiddleware("-USERS"))
 	
@@ -53,7 +53,7 @@ func TestNestedGroupInheritance(t *testing.T) {
 		_, _ = w.Write([]byte("-HANDLER"))
 	})
 	
-	// グローバルはServeHTTPで適用、その他は階層的に継承
+	// Global is applied in ServeHTTP, others are inherited hierarchically
 	if err := Verify(r, []*Want{
 		{"/api/v1/users/123", 200, "GLOBAL-API-V1-USERS-HANDLER"},
 	}); err != nil {
@@ -61,30 +61,30 @@ func TestNestedGroupInheritance(t *testing.T) {
 	}
 }
 
-// Groupからの直接的なルート登録とサブグループの独立性を確認
+// Test to confirm direct route registration from Group and subgroup independence
 func TestGroupMiddlewareIsolation(t *testing.T) {
 	r := NewRouter()
 	
-	// グローバルミドルウェア
+	// Global middleware
 	r.Use(WriteMiddleware("G"))
 	
-	// 親Group
+	// Parent Group
 	parent := r.Group("/parent")
 	parent.Use(WriteMiddleware("-P"))
 	
-	// 親Groupに直接ルートを登録
+	// Register route directly to parent Group
 	parent.Get("/direct", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("-D"))
 	})
 	
-	// 子Group1
+	// Child Group 1
 	child1 := parent.Group("/child1")
 	child1.Use(WriteMiddleware("-C1"))
 	child1.Get("/test", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("-T1"))
 	})
 	
-	// 子Group2（child1のミドルウェアの影響を受けない）
+	// Child Group 2 (not affected by child1's middleware)
 	child2 := parent.Group("/child2")
 	child2.Use(WriteMiddleware("-C2"))
 	child2.Get("/test", func(w http.ResponseWriter, r *http.Request) {
@@ -100,31 +100,31 @@ func TestGroupMiddlewareIsolation(t *testing.T) {
 	}
 }
 
-// Routeメソッドが親のミドルウェアを継承しないことを確認
+// Test to confirm that Route method does not inherit parent middleware
 func TestRouteDoesNotInheritMiddleware(t *testing.T) {
 	r := NewRouter()
 	
-	// グローバルミドルウェア
+	// Global middleware
 	r.Use(WriteMiddleware("GLOBAL"))
 	
 	// Group with middleware
 	g := r.Group("/api")
 	g.Use(WriteMiddleware("-GROUP"))
 	
-	// Routeは親のミドルウェアを継承しない
+	// Route does not inherit parent middleware
 	route := g.Route()
 	route.Get("/independent", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("-INDEPENDENT"))
 	})
 	
-	// Routeに独自のミドルウェアを追加
+	// Add custom middleware to Route
 	route2 := g.Route(WriteMiddleware("-ROUTE"))
 	route2.Get("/with-middleware", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("-HANDLER"))
 	})
 	
 	if err := Verify(r, []*Want{
-		// Routeは親のミドルウェアを継承しないが、グローバルは適用される
+		// Route does not inherit parent middleware, but global is applied
 		{"/api/independent", 200, "GLOBAL-INDEPENDENT"},
 		{"/api/with-middleware", 200, "GLOBAL-ROUTE-HANDLER"},
 	}); err != nil {

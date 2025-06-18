@@ -43,7 +43,7 @@ func (ctx *Context) WithContext(r *http.Request) *http.Request {
 }
 
 func (ctx *Context) reset() *Context {
-	// スライスをクリア（長さを0にして、要素への参照を削除）
+	// Clear slices - set length to 0 and remove references
 	for i := range ctx.params.keys {
 		ctx.params.keys[i] = ""
 	}
@@ -61,7 +61,7 @@ func (ctx *Context) PutParam(key, value string) {
 }
 
 func (ctx *Context) GetParam(key string) string {
-	// 高速パス：少数のパラメータ
+	// Fast path for few parameters
 	switch len(ctx.params.keys) {
 	case 0:
 		return ""
@@ -79,7 +79,7 @@ func (ctx *Context) GetParam(key string) string {
 		}
 		return ""
 	default:
-		// 3つ以上の場合はループ
+		// Loop for 3 or more parameters
 		for i, v := range ctx.params.keys {
 			if v == key {
 				return ctx.params.values[i]

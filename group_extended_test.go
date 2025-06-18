@@ -5,16 +5,16 @@ import (
 	"testing"
 )
 
-// Group基本ルーティングの拡張テスト
+// Extended tests for basic Group routing
 func TestGroupRoutingExtended(t *testing.T) {
 	r := NewRouter()
 
-	// 複数レベルのネストグループ
+	// Multi-level nested groups
 	api := r.Group("/api")
 	v1 := api.Group("/v1")
 	v2 := api.Group("/v2")
 	
-	// v1グループのルート
+	// v1 group routes
 	users := v1.Group("/users")
 	users.Get("/:id", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("v1-user-" + URLParam(r, "id")))
@@ -23,7 +23,7 @@ func TestGroupRoutingExtended(t *testing.T) {
 		_, _ = w.Write([]byte("v1-user-created"))
 	})
 	
-	// v2グループのルート
+	// v2 group routes
 	posts := v2.Group("/posts")
 	posts.Get("/:id", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("v2-post-" + URLParam(r, "id")))
@@ -42,13 +42,13 @@ func TestGroupRoutingExtended(t *testing.T) {
 	}
 }
 
-// 全HTTPメソッドのGroupテスト
+// Group tests for all HTTP methods
 func TestGroupHTTPMethods(t *testing.T) {
 	r := NewRouter()
 	
 	api := r.Group("/api")
 	
-	// 全HTTPメソッドをテスト
+	// Test all HTTP methods
 	api.Get("/get", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("GET"))
 	})
@@ -91,11 +91,11 @@ func TestGroupHTTPMethods(t *testing.T) {
 	}
 }
 
-// 深いネスト構造のGroupテスト
+// Group tests with deep nesting structure
 func TestGroupDeepNesting(t *testing.T) {
 	r := NewRouter()
 
-	// 5レベルのネスト
+	// 5 levels of nesting
 	level1 := r.Group("/l1")
 	level2 := level1.Group("/l2")
 	level3 := level2.Group("/l3")
@@ -106,7 +106,7 @@ func TestGroupDeepNesting(t *testing.T) {
 		_, _ = w.Write([]byte("deep-nested"))
 	})
 	
-	// パラメータを含む深いネスト
+	// Deep nesting with parameters
 	level3.Get("/:param1/l4/:param2/final", func(w http.ResponseWriter, r *http.Request) {
 		p1 := URLParam(r, "param1")
 		p2 := URLParam(r, "param2")
@@ -121,21 +121,21 @@ func TestGroupDeepNesting(t *testing.T) {
 	}
 }
 
-// 複雑なミドルウェア組み合わせテスト
+// Complex middleware combination tests
 func TestGroupComplexMiddleware(t *testing.T) {
 	r := NewRouter()
 
-	// ルートレベルミドルウェア
+	// Route-level middleware
 	r.Use(WriteMiddleware("ROOT"))
 	
-	// Group1（ミドルウェア1つ）
+	// Group1 (one middleware)
 	group1 := r.Group("/g1")
 	group1.Use(WriteMiddleware("-G1"))
 	group1.Get("/simple", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("-SIMPLE"))
 	})
 	
-	// Group2（ミドルウェア複数）
+	// Group2 (multiple middleware)
 	group2 := r.Group("/g2")
 	group2.Use(WriteMiddleware("-G2A"))
 	group2.Use(WriteMiddleware("-G2B"))
@@ -143,14 +143,14 @@ func TestGroupComplexMiddleware(t *testing.T) {
 		_, _ = w.Write([]byte("-MULTI"))
 	})
 	
-	// ネストされたGroup（継承＋追加）
+	// Nested Group (inheritance + addition)
 	nested := group1.Group("/nested")
 	nested.Use(WriteMiddleware("-NESTED"))
 	nested.Get("/inherit", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("-INHERIT"))
 	})
 	
-	// ルートごとのミドルウェア追加
+	// Add middleware per route
 	group1.Get("/route-mw", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("-ROUTE"))
 	}, WriteMiddleware("-EXTRA"))
@@ -165,26 +165,26 @@ func TestGroupComplexMiddleware(t *testing.T) {
 	}
 }
 
-// Group内でのRouteテスト
+// Route tests within Group
 func TestGroupWithRoute(t *testing.T) {
 	r := NewRouter()
 	
-	// グループレベルのミドルウェア
+	// Group-level middleware
 	group := r.Group("/group")
 	group.Use(WriteMiddleware("GROUP"))
 	
-	// 通常のGroupルート
+	// Normal Group route
 	group.Get("/normal", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("-NORMAL"))
 	})
 	
-	// Routeで作成（ミドルウェア継承なし）
+	// Created with Route (no middleware inheritance)
 	route := group.Route()
 	route.Get("/isolated", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("ISOLATED"))
 	})
 	
-	// Routeにミドルウェア追加
+	// Add middleware to Route
 	routeWithMw := group.Route(WriteMiddleware("ROUTE"))
 	routeWithMw.Get("/route-mw", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("-ROUTE"))
@@ -199,14 +199,14 @@ func TestGroupWithRoute(t *testing.T) {
 	}
 }
 
-// Groupパラメータルーティングの詳細テスト
+// Detailed tests for Group parameter routing
 func TestGroupParameterRouting(t *testing.T) {
 	r := NewRouter()
 
-	// パラメータを含むグループ
+	// Group with parameters
 	users := r.Group("/users/:userId")
 	
-	// サブリソース
+	// Sub-resources
 	users.Get("/profile", func(w http.ResponseWriter, r *http.Request) {
 		userId := URLParam(r, "userId")
 		_, _ = w.Write([]byte("profile-" + userId))
@@ -218,7 +218,7 @@ func TestGroupParameterRouting(t *testing.T) {
 		_, _ = w.Write([]byte("user-" + userId + "-post-" + postId))
 	})
 	
-	// ネストしたパラメータグループ
+	// Nested parameter group
 	posts := users.Group("/posts/:postId")
 	posts.Get("/comments/:commentId", func(w http.ResponseWriter, r *http.Request) {
 		userId := URLParam(r, "userId")
@@ -236,11 +236,11 @@ func TestGroupParameterRouting(t *testing.T) {
 	}
 }
 
-// Groupエラーケーステスト
+// Group error case tests
 func TestGroupErrorCases(t *testing.T) {
 	r := NewRouter()
 
-	// 同じパスの異なるメソッド
+	// Different methods on the same path
 	api := r.Group("/api")
 	api.Get("/resource", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("GET"))
@@ -249,7 +249,7 @@ func TestGroupErrorCases(t *testing.T) {
 		_, _ = w.Write([]byte("POST"))
 	})
 	
-	// 存在しないパス
+	// Non-existent path
 	api.Get("/existing", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("EXISTS"))
 	})
@@ -265,29 +265,29 @@ func TestGroupErrorCases(t *testing.T) {
 	}
 }
 
-// Group prefix処理のエッジケーステスト
+// Edge case tests for Group prefix handling
 func TestGroupPrefixEdgeCases(t *testing.T) {
 	r := NewRouter()
 
-	// 空のprefix
+	// Empty prefix
 	empty := r.Group("")
 	empty.Get("/empty", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("empty-prefix"))
 	})
 	
-	// スラッシュだけのprefix  
+	// Slash-only prefix  
 	slash := r.Group("/")
 	slash.Get("/slash", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("slash-prefix"))
 	})
 	
-	// 末尾スラッシュなし
+	// No trailing slash
 	noSlash := r.Group("/no-slash")
 	noSlash.Get("/test", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("no-slash"))
 	})
 	
-	// 末尾スラッシュあり
+	// With trailing slash
 	withSlash := r.Group("/with-slash/")
 	withSlash.Get("/test", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("with-slash"))
@@ -302,22 +302,22 @@ func TestGroupPrefixEdgeCases(t *testing.T) {
 	}
 }
 
-// Groupワイルドカードルーティングテスト
+// Group wildcard routing tests
 func TestGroupWildcardRouting(t *testing.T) {
 	r := NewRouter()
 
-	// ワイルドカードを含むグループ
+	// Group with wildcard
 	files := r.Group("/files")
 	files.Get("/*", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("files-wildcard"))
 	})
 	
-	// 静的ルートとワイルドカードの優先度
+	// Priority between static route and wildcard
 	files.Get("/special", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("files-special"))
 	})
 	
-	// ネストしたワイルドカード
+	// Nested wildcard
 	api := r.Group("/api")
 	proxy := api.Group("/proxy")
 	proxy.Get("/*", func(w http.ResponseWriter, r *http.Request) {
@@ -325,7 +325,7 @@ func TestGroupWildcardRouting(t *testing.T) {
 	})
 
 	if err := Verify(r, []*Want{
-		{"/files/special", 200, "files-special"}, // 静的ルートが優先
+		{"/files/special", 200, "files-special"}, // Static route takes priority
 		{"/files/any/path/here", 200, "files-wildcard"},
 		{"/api/proxy/deep/nested/path", 200, "proxy-wildcard"},
 	}); err != nil {

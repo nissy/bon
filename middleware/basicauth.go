@@ -21,20 +21,20 @@ func BasicAuth(users []BasicAuthUser) func(next http.Handler) http.Handler {
 				return
 			}
 			
-			// ユーザー認証確認（タイミング攻撃に対して安全な比較）
+			// Check user authentication (safe comparison against timing attacks)
 			for _, user := range users {
-				// ユーザー名とパスワードの長さが一致するかチェック
+				// Check if username and password lengths match
 				userNameMatch := len(user.Name) == len(u) && subtle.ConstantTimeCompare([]byte(user.Name), []byte(u)) == 1
 				passwordMatch := len(user.Password) == len(p) && subtle.ConstantTimeCompare([]byte(user.Password), []byte(p)) == 1
 				
-				// 両方が一致した場合のみ認証成功
+				// Authentication succeeds only when both match
 				if userNameMatch && passwordMatch {
 					next.ServeHTTP(w, r)
 					return
 				}
 			}
 			
-			// 認証失敗
+			// Authentication failed
 			w.Header().Set("WWW-Authenticate", `Basic realm="MY REALM"`)
 			w.WriteHeader(http.StatusUnauthorized)
 			_, _ = w.Write([]byte(http.StatusText(http.StatusUnauthorized)))

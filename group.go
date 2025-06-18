@@ -68,9 +68,9 @@ func (g *Group) Trace(pattern string, handlerFunc http.HandlerFunc, middlewares 
 }
 
 func (g *Group) Handle(method, pattern string, handler http.Handler, middlewares ...Middleware) {
-	// プレフィックスとパターンを安全に結合
+	// Safely combine prefix and pattern
 	fullPattern := g.prefix + resolvePatternPrefix(pattern)
-	// 連続スラッシュを除去
+	// Remove consecutive slashes
 	for strings.Contains(fullPattern, "//") {
 		fullPattern = strings.ReplaceAll(fullPattern, "//", "/")
 	}
@@ -79,7 +79,7 @@ func (g *Group) Handle(method, pattern string, handler http.Handler, middlewares
 
 func (g *Group) FileServer(pattern, root string, middlewares ...Middleware) {
 	p := g.prefix + resolvePatternPrefix(pattern)
-	// 連続スラッシュを除去
+	// Remove consecutive slashes
 	for strings.Contains(p, "//") {
 		p = strings.ReplaceAll(p, "//", "/")
 	}

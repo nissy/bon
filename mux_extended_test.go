@@ -6,11 +6,11 @@ import (
 	"testing"
 )
 
-// Mux複雑なルーティングパターンテスト
+// Mux complex routing pattern test
 func TestMuxComplexRouting(t *testing.T) {
 	r := NewRouter()
 
-	// 静的ルートとパラメータルートの混合
+	// Mix of static routes and parameter routes
 	r.Get("/users", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("users-list"))
 	})
@@ -29,7 +29,7 @@ func TestMuxComplexRouting(t *testing.T) {
 		_, _ = w.Write([]byte("user-" + userId + "-post-" + postId))
 	})
 
-	// ワイルドカードルート
+	// Wildcard routes
 	r.Get("/files/*", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("files-wildcard"))
 	})
@@ -45,26 +45,26 @@ func TestMuxComplexRouting(t *testing.T) {
 	}
 }
 
-// Mux優先度テスト
+// Mux priority test
 func TestMuxRoutePriority(t *testing.T) {
 	r := NewRouter()
 
-	// 静的ルートが最優先
+	// Static routes have highest priority
 	r.Get("/static", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("static-route"))
 	})
 	
-	// パラメータルート
+	// Parameter routes
 	r.Get("/:param", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("param-" + URLParam(r, "param")))
 	})
 	
-	// ワイルドカードルート（最低優先度）
+	// Wildcard routes (lowest priority)
 	r.Get("/*", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("wildcard"))
 	})
 
-	// より具体的なパターンテスト
+	// More specific pattern test
 	r.Get("/api/users", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("api-users-static"))
 	})
@@ -74,31 +74,31 @@ func TestMuxRoutePriority(t *testing.T) {
 	})
 
 	if err := Verify(r, []*Want{
-		{"/static", 200, "static-route"},      // 静的ルートが優先
-		{"/dynamic", 200, "param-dynamic"},    // パラメータルート
-		{"/api/users", 200, "api-users-static"}, // より具体的な静的ルート
-		{"/api/posts", 200, "api-posts"},      // パラメータルート
-		{"/any/deep/path", 200, "wildcard"},   // ワイルドカード
+		{"/static", 200, "static-route"},      // Static route takes precedence
+		{"/dynamic", 200, "param-dynamic"},    // Parameter route
+		{"/api/users", 200, "api-users-static"}, // More specific static route
+		{"/api/posts", 200, "api-posts"},      // Parameter route
+		{"/any/deep/path", 200, "wildcard"},   // Wildcard
 	}); err != nil {
 		t.Fatal(err)
 	}
 }
 
-// Mux特殊文字とエンコーディングテスト
+// Mux special characters and encoding test
 func TestMuxSpecialCharactersExtended(t *testing.T) {
 	r := NewRouter()
 
-	// パスに特殊文字を含むテスト
+	// Test with special characters in path
 	r.Get("/special/:param", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("param-" + URLParam(r, "param")))
 	})
 	
-	// 日本語パス
+	// Japanese path
 	r.Get("/japanese/:名前", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("japanese-" + URLParam(r, "名前")))
 	})
 	
-	// エスケープが必要な文字
+	// Characters that need escaping
 	r.Get("/encoded", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("encoded-path"))
 	})
@@ -107,18 +107,18 @@ func TestMuxSpecialCharactersExtended(t *testing.T) {
 		{"/special/hello world", 200, "param-hello world"},
 		{"/special/test@example.com", 200, "param-test@example.com"},
 		{"/encoded", 200, "encoded-path"},
-		// 日本語のテストは環境依存のため、基本的な文字のみテスト
+		// Japanese test is environment-dependent, so test only basic characters
 		{"/special/test-123", 200, "param-test-123"},
 	}); err != nil {
 		t.Fatal(err)
 	}
 }
 
-// Muxミドルウェアチェーンテスト
+// Mux middleware chain test
 func TestMuxMiddlewareChain(t *testing.T) {
 	r := NewRouter()
 
-	// 複数のミドルウェア順序テスト
+	// Multiple middleware order test
 	r.Use(WriteMiddleware("M1"))
 	r.Use(WriteMiddleware("-M2"))
 	r.Use(WriteMiddleware("-M3"))
@@ -127,7 +127,7 @@ func TestMuxMiddlewareChain(t *testing.T) {
 		_, _ = w.Write([]byte("-HANDLER"))
 	})
 	
-	// ルート固有のミドルウェア
+	// Route-specific middleware
 	r.Get("/route-specific", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("-SPECIFIC"))
 	}, WriteMiddleware("-EXTRA"))
@@ -140,11 +140,11 @@ func TestMuxMiddlewareChain(t *testing.T) {
 	}
 }
 
-// Mux大量ルートパフォーマンステスト
+// Mux performance test with many routes
 func TestMuxManyRoutes(t *testing.T) {
 	r := NewRouter()
 
-	// 大量の静的ルートを登録
+	// Register many static routes
 	for i := 0; i < 100; i++ {
 		digit := i % 10
 		letter := i % 26
@@ -158,21 +158,21 @@ func TestMuxManyRoutes(t *testing.T) {
 		}(expectedBody))
 	}
 	
-	// いくつかのルートをテスト（実際に登録されたパスを使用）
+	// Test several routes (using actually registered paths)
 	if err := Verify(r, []*Want{
 		{"/route0/a", 200, "route-0-a"},
 		{"/route5/f", 200, "route-5-f"},
-		{"/route9/j", 200, "route-9-j"}, // route9/z は登録されていない（99%26=21='v'）
+		{"/route9/j", 200, "route-9-j"}, // route9/z is not registered (99%26=21='v')
 	}); err != nil {
 		t.Fatal(err)
 	}
 }
 
-// Mux同一パスの異なるメソッドテスト
+// Mux test for different methods on same path
 func TestMuxSamePathDifferentMethods(t *testing.T) {
 	r := NewRouter()
 
-	// 同じパスに異なるHTTPメソッドを登録
+	// Register different HTTP methods on the same path
 	r.Get("/resource", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("GET-resource"))
 	})
@@ -189,7 +189,7 @@ func TestMuxSamePathDifferentMethods(t *testing.T) {
 		_, _ = w.Write([]byte("DELETE-resource"))
 	})
 	
-	// パラメータ付きでも同様
+	// Same with parameters
 	r.Get("/resource/:id", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("GET-resource-" + URLParam(r, "id")))
 	})
@@ -210,21 +210,21 @@ func TestMuxSamePathDifferentMethods(t *testing.T) {
 	}
 }
 
-// Muxルート上書きテスト
+// Mux route override test
 func TestMuxRouteOverride(t *testing.T) {
 	r := NewRouter()
 
-	// 最初のルート
+	// First route
 	r.Get("/override", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("first"))
 	})
 	
-	// 同じパスのルートを再登録（上書き）
+	// Re-register the same path route (override)
 	r.Get("/override", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("second"))
 	})
 	
-	// パラメータルートでも同様
+	// Same with parameter routes
 	r.Get("/param/:id", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("first-" + URLParam(r, "id")))
 	})
@@ -241,18 +241,18 @@ func TestMuxRouteOverride(t *testing.T) {
 	}
 }
 
-// Mux複数パラメータテスト
+// Mux multiple parameters test
 func TestMuxMultipleParameters(t *testing.T) {
 	r := NewRouter()
 
-	// 2つのパラメータ
+	// Two parameters
 	r.Get("/users/:userId/posts/:postId", func(w http.ResponseWriter, r *http.Request) {
 		userId := URLParam(r, "userId")
 		postId := URLParam(r, "postId")
 		_, _ = w.Write([]byte(userId + "-" + postId))
 	})
 	
-	// 3つのパラメータ
+	// Three parameters
 	r.Get("/a/:p1/b/:p2/c/:p3", func(w http.ResponseWriter, r *http.Request) {
 		p1 := URLParam(r, "p1")
 		p2 := URLParam(r, "p2")
@@ -260,7 +260,7 @@ func TestMuxMultipleParameters(t *testing.T) {
 		_, _ = w.Write([]byte(p1 + "-" + p2 + "-" + p3))
 	})
 	
-	// 5つのパラメータ
+	// Five parameters
 	r.Get("/:a/:b/:c/:d/:e", func(w http.ResponseWriter, r *http.Request) {
 		params := []string{
 			URLParam(r, "a"),
@@ -281,22 +281,22 @@ func TestMuxMultipleParameters(t *testing.T) {
 	}
 }
 
-// Muxエラーハンドリングテスト
+// Mux error handling test
 func TestMuxErrorHandling(t *testing.T) {
 	r := NewRouter()
 
-	// カスタム404ハンドラー
-	r.NotFound = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	// Custom 404 handler
+	r.SetNotFound(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 		_, _ = w.Write([]byte("Custom 404: " + r.URL.Path))
 	})
 	
-	// 通常のルート
+	// Normal route
 	r.Get("/exists", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("exists"))
 	})
 	
-	// パニックを起こすルート（本来はミドルウェアで処理すべき）
+	// Route that causes panic (should be handled by middleware)
 	r.Get("/panic", func(w http.ResponseWriter, r *http.Request) {
 		defer func() {
 			if err := recover(); err != nil {
@@ -316,16 +316,16 @@ func TestMuxErrorHandling(t *testing.T) {
 	}
 }
 
-// Muxワイルドカード詳細テスト
+// Mux wildcard details test
 func TestMuxWildcardDetails(t *testing.T) {
 	r := NewRouter()
 
-	// 基本的なワイルドカード
+	// Basic wildcard
 	r.Get("/files/*", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("files"))
 	})
 	
-	// より具体的なワイルドカード
+	// More specific wildcard
 	r.Get("/api/v1/*", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("api-v1"))
 	})
@@ -334,7 +334,7 @@ func TestMuxWildcardDetails(t *testing.T) {
 		_, _ = w.Write([]byte("api-v2"))
 	})
 	
-	// 静的ルートとワイルドカードの共存
+	// Coexistence of static routes and wildcards
 	r.Get("/api/v1/users", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("api-v1-users-static"))
 	})
@@ -343,7 +343,7 @@ func TestMuxWildcardDetails(t *testing.T) {
 		{"/files/deep/nested/path", 200, "files"},
 		{"/api/v1/anything", 200, "api-v1"},
 		{"/api/v2/something", 200, "api-v2"},
-		{"/api/v1/users", 200, "api-v1-users-static"}, // 静的ルートが優先
+		{"/api/v1/users", 200, "api-v1-users-static"}, // Static route takes precedence
 		{"/api/v1/other", 200, "api-v1"},
 	}); err != nil {
 		t.Fatal(err)

@@ -10,14 +10,14 @@ import (
 	"testing"
 )
 
-// ミドルウェア実行順序の詳細検証テスト
+// Detailed middleware execution order verification tests
 func TestMiddlewareExecutionOrder(t *testing.T) {
 	r := NewRouter()
 	
 	var executionOrder []string
 	var mu sync.Mutex
 	
-	// ミドルウェア1: リクエスト前処理とレスポンス後処理
+	// Middleware 1: request pre-processing and response post-processing
 	middleware1 := func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			mu.Lock()
@@ -32,7 +32,7 @@ func TestMiddlewareExecutionOrder(t *testing.T) {
 		})
 	}
 	
-	// ミドルウェア2: リクエスト前処理とレスポンス後処理
+	// Middleware 2: request pre-processing and response post-processing
 	middleware2 := func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			mu.Lock()
@@ -57,7 +57,7 @@ func TestMiddlewareExecutionOrder(t *testing.T) {
 		_, _ = w.Write([]byte("ok"))
 	})
 	
-	// 実行前にリセット
+	// Reset before execution
 	mu.Lock()
 	executionOrder = []string{}
 	mu.Unlock()
@@ -66,7 +66,7 @@ func TestMiddlewareExecutionOrder(t *testing.T) {
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
 	
-	// 期待される実行順序: MW1-BEFORE -> MW2-BEFORE -> HANDLER -> MW2-AFTER -> MW1-AFTER
+	// Expected execution order: MW1-BEFORE -> MW2-BEFORE -> HANDLER -> MW2-AFTER -> MW1-AFTER
 	expected := []string{"MW1-BEFORE", "MW2-BEFORE", "HANDLER", "MW2-AFTER", "MW1-AFTER"}
 	
 	mu.Lock()
@@ -82,11 +82,11 @@ func TestMiddlewareExecutionOrder(t *testing.T) {
 	mu.Unlock()
 }
 
-// ミドルウェアでのパニック処理テスト
+// Middleware panic recovery tests
 func TestMiddlewarePanicRecovery(t *testing.T) {
 	r := NewRouter()
 	
-	// パニック回復ミドルウェア
+	// Panic recovery middleware
 	panicRecoveryMiddleware := func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			defer func() {
@@ -101,17 +101,17 @@ func TestMiddlewarePanicRecovery(t *testing.T) {
 	
 	r.Use(panicRecoveryMiddleware)
 	
-	// パニックを起こすハンドラー
+	// Handler that panics
 	r.Get("/panic", func(w http.ResponseWriter, r *http.Request) {
 		panic("test panic")
 	})
 	
-	// 正常なハンドラー
+	// Normal handler
 	r.Get("/normal", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("NORMAL"))
 	})
 	
-	// パニックのテスト
+	// Panic test
 	req1 := httptest.NewRequest("GET", "/panic", nil)
 	rec1 := httptest.NewRecorder()
 	r.ServeHTTP(rec1, req1)
@@ -124,7 +124,7 @@ func TestMiddlewarePanicRecovery(t *testing.T) {
 		t.Errorf("Expected panic recovery message, got: %s", rec1.Body.String())
 	}
 	
-	// 正常なリクエストのテスト
+	// Normal request test
 	req2 := httptest.NewRequest("GET", "/normal", nil)
 	rec2 := httptest.NewRecorder()
 	r.ServeHTTP(rec2, req2)
@@ -138,14 +138,14 @@ func TestMiddlewarePanicRecovery(t *testing.T) {
 	}
 }
 
-// testContextKey は専用の型
+// testContextKey is a dedicated type
 type testContextKey string
 
-// ミドルウェアでのコンテキスト伝播テスト
+// Context propagation in middleware tests
 func TestMiddlewareContextPropagation(t *testing.T) {
 	r := NewRouter()
 	
-	// コンテキスト値を設定するミドルウェア
+	// Middleware that sets context values
 	contextMiddleware := func(key, value string) func(http.Handler) http.Handler {
 		return func(next http.Handler) http.Handler {
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -178,14 +178,14 @@ func TestMiddlewareContextPropagation(t *testing.T) {
 	}
 }
 
-// ミドルウェアでのレスポンス書き込み制御テスト
+// Response writing control in middleware tests
 func TestMiddlewareResponseControl(t *testing.T) {
 	r := NewRouter()
 	
-	// レスポンスをキャプチャして変更するミドルウェア
+	// Middleware that captures and modifies response
 	responseModifierMiddleware := func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// カスタムResponseWriter
+			// Custom ResponseWriter
 			recorder := &ResponseRecorder{
 				ResponseWriter: w,
 				statusCode:     200,
@@ -194,7 +194,7 @@ func TestMiddlewareResponseControl(t *testing.T) {
 			
 			next.ServeHTTP(recorder, r)
 			
-			// レスポンスを変更
+			// Modify response
 			if recorder.statusCode == 200 {
 				w.Header().Set("X-Modified", "true")
 				w.WriteHeader(200)
@@ -230,14 +230,14 @@ func TestMiddlewareResponseControl(t *testing.T) {
 	}
 }
 
-// 条件付きミドルウェア適用の高度なテスト
+// Advanced conditional middleware application tests
 func TestAdvancedConditionalMiddleware(t *testing.T) {
 	r := NewRouter()
 	
-	// パスベースの条件付きミドルウェア
+	// Path-based conditional middleware
 	conditionalAuthMiddleware := func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// /api/ パスの場合のみ認証チェック
+			// Authentication check only for /api/ paths
 			if strings.HasPrefix(r.URL.Path, "/api/") {
 				auth := r.Header.Get("Authorization")
 				if auth != "Bearer valid-token" {
@@ -250,11 +250,11 @@ func TestAdvancedConditionalMiddleware(t *testing.T) {
 		})
 	}
 	
-	// メソッドベースの条件付きミドルウェア
+	// Method-based conditional middleware
 	methodBasedMiddleware := func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.Method == "POST" || r.Method == "PUT" || r.Method == "DELETE" {
-				// 変更系メソッドの場合はCSRFチェック（簡略化）
+				// CSRF check for mutation methods (simplified)
 				csrf := r.Header.Get("X-CSRF-Token")
 				if csrf != "valid-csrf-token" {
 					w.WriteHeader(http.StatusForbidden)
@@ -269,22 +269,22 @@ func TestAdvancedConditionalMiddleware(t *testing.T) {
 	r.Use(conditionalAuthMiddleware)
 	r.Use(methodBasedMiddleware)
 	
-	// パブリックエンドポイント
+	// Public endpoint
 	r.Get("/public", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("public-content"))
 	})
 	
-	// APIエンドポイント
+	// API endpoint
 	r.Get("/api/data", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("api-data"))
 	})
 	
-	// 変更系エンドポイント
+	// Mutation endpoint
 	r.Post("/api/create", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("created"))
 	})
 	
-	// パブリックエンドポイントのテスト
+	// Public endpoint test
 	req1 := httptest.NewRequest("GET", "/public", nil)
 	rec1 := httptest.NewRecorder()
 	r.ServeHTTP(rec1, req1)
@@ -293,7 +293,7 @@ func TestAdvancedConditionalMiddleware(t *testing.T) {
 		t.Errorf("Expected status 200 for public endpoint, got %d", rec1.Code)
 	}
 	
-	// API エンドポイント（認証なし）
+	// API endpoint (without authentication)
 	req2 := httptest.NewRequest("GET", "/api/data", nil)
 	rec2 := httptest.NewRecorder()
 	r.ServeHTTP(rec2, req2)
@@ -302,7 +302,7 @@ func TestAdvancedConditionalMiddleware(t *testing.T) {
 		t.Errorf("Expected status 401 for API without auth, got %d", rec2.Code)
 	}
 	
-	// API エンドポイント（認証あり）
+	// API endpoint (with authentication)
 	req3 := httptest.NewRequest("GET", "/api/data", nil)
 	req3.Header.Set("Authorization", "Bearer valid-token")
 	rec3 := httptest.NewRecorder()
@@ -312,7 +312,7 @@ func TestAdvancedConditionalMiddleware(t *testing.T) {
 		t.Errorf("Expected status 200 for API with auth, got %d", rec3.Code)
 	}
 	
-	// POST エンドポイント（認証ありCSRFなし）
+	// POST endpoint (with authentication, without CSRF)
 	req4 := httptest.NewRequest("POST", "/api/create", nil)
 	req4.Header.Set("Authorization", "Bearer valid-token")
 	rec4 := httptest.NewRecorder()
@@ -322,7 +322,7 @@ func TestAdvancedConditionalMiddleware(t *testing.T) {
 		t.Errorf("Expected status 403 for POST without CSRF, got %d", rec4.Code)
 	}
 	
-	// POST エンドポイント（認証ありCSRFあり）
+	// POST endpoint (with authentication and CSRF)
 	req5 := httptest.NewRequest("POST", "/api/create", nil)
 	req5.Header.Set("Authorization", "Bearer valid-token")
 	req5.Header.Set("X-CSRF-Token", "valid-csrf-token")
@@ -334,14 +334,14 @@ func TestAdvancedConditionalMiddleware(t *testing.T) {
 	}
 }
 
-// ミドルウェアチェーンでの異常な終了パターンテスト
+// Abnormal termination patterns in middleware chain tests
 func TestMiddlewareChainInterruption(t *testing.T) {
 	r := NewRouter()
 	
 	var executionLog []string
 	var mu sync.Mutex
 	
-	// ミドルウェア1: 正常実行
+	// Middleware 1: normal execution
 	mw1 := func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			mu.Lock()
@@ -356,14 +356,14 @@ func TestMiddlewareChainInterruption(t *testing.T) {
 		})
 	}
 	
-	// ミドルウェア2: 条件によって中断
+	// Middleware 2: interrupts based on conditions
 	mw2 := func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			mu.Lock()
 			executionLog = append(executionLog, "MW2-START")
 			mu.Unlock()
 			
-			// "interrupt" パラメータがあれば中断
+			// Interrupt if "interrupt" parameter is present
 			if r.URL.Query().Get("interrupt") == "true" {
 				mu.Lock()
 				executionLog = append(executionLog, "MW2-INTERRUPT")
@@ -382,7 +382,7 @@ func TestMiddlewareChainInterruption(t *testing.T) {
 		})
 	}
 	
-	// ミドルウェア3: 正常実行
+	// Middleware 3: normal execution
 	mw3 := func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			mu.Lock()
@@ -409,7 +409,7 @@ func TestMiddlewareChainInterruption(t *testing.T) {
 		_, _ = w.Write([]byte("success"))
 	})
 	
-	// 正常実行のテスト
+	// Normal execution test
 	mu.Lock()
 	executionLog = []string{}
 	mu.Unlock()
@@ -426,7 +426,7 @@ func TestMiddlewareChainInterruption(t *testing.T) {
 	}
 	mu.Unlock()
 	
-	// 中断実行のテスト
+	// Interrupted execution test
 	mu.Lock()
 	executionLog = []string{}
 	mu.Unlock()
@@ -454,7 +454,7 @@ func TestMiddlewareChainInterruption(t *testing.T) {
 	}
 }
 
-// カスタムResponseWriter for response capture
+// Custom ResponseWriter for response capture
 type ResponseRecorder struct {
 	http.ResponseWriter
 	statusCode int

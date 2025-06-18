@@ -297,11 +297,11 @@ func TestMuxMiddleware(t *testing.T) {
 	}
 }
 
-// HTTPメソッドのテスト
+// HTTP method tests
 func TestMuxHTTPMethods(t *testing.T) {
 	r := NewRouter()
 
-	// 各HTTPメソッドのハンドラーを設定
+	// Set handlers for each HTTP method
 	r.Get("/resource", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("GET"))
 	})
@@ -324,7 +324,7 @@ func TestMuxHTTPMethods(t *testing.T) {
 		_, _ = w.Write([]byte("OPTIONS"))
 	})
 
-	// 各メソッドで同じパスにアクセスし、正しいハンドラーが呼ばれることを確認
+	// Access the same path with each method and ensure the correct handler is called
 	tests := []struct {
 		method string
 		want   string
@@ -351,7 +351,7 @@ func TestMuxHTTPMethods(t *testing.T) {
 		}
 	}
 
-	// HEADメソッドのテスト
+	// HEAD method test
 	req := httptest.NewRequest("HEAD", "/resource", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
@@ -365,17 +365,17 @@ func TestMuxHTTPMethods(t *testing.T) {
 	}
 }
 
-// 複雑なミドルウェアチェーンのテスト
+// Complex middleware chain tests
 func TestMuxComplexMiddleware(t *testing.T) {
 	r := NewRouter()
 
-	// 複数のミドルウェアを適用
+	// Apply multiple middleware
 	r.Use(
 		WriteMiddleware("G1"),
 		WriteMiddleware("G2"),
 	)
 
-	// ルートレベルのミドルウェア付きハンドラー
+	// Route-level handler with middleware
 	r.Get("/test1", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("H1"))
 	},
@@ -383,7 +383,7 @@ func TestMuxComplexMiddleware(t *testing.T) {
 		WriteMiddleware("R2"),
 	)
 
-	// グループでのミドルウェア
+	// Group middleware
 	g := r.Group("/group")
 	g.Use(
 		WriteMiddleware("GR1"),
@@ -393,7 +393,7 @@ func TestMuxComplexMiddleware(t *testing.T) {
 		_, _ = w.Write([]byte("H2"))
 	})
 
-	// ネストしたグループ
+	// Nested group
 	sg := g.Group("/sub")
 	sg.Use(WriteMiddleware("SG1"))
 	sg.Get("/test3", func(w http.ResponseWriter, r *http.Request) {
@@ -411,16 +411,16 @@ func TestMuxComplexMiddleware(t *testing.T) {
 	}
 }
 
-// エラーケースのテスト
+// Error case tests
 func TestMuxErrorCases(t *testing.T) {
 	r := NewRouter()
 
-	// 基本的なルートを設定
+	// Set up basic routes
 	r.Get("/users/:id", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("user-" + URLParam(r, "id")))
 	})
 
-	// 404エラーのテスト
+	// 404 error tests
 	tests := []struct {
 		path       string
 		wantStatus int
@@ -442,7 +442,7 @@ func TestMuxErrorCases(t *testing.T) {
 		}
 	}
 
-	// 間違ったメソッドでのアクセス
+	// Access with wrong method
 	req := httptest.NewRequest("POST", "/users/123", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
@@ -452,7 +452,7 @@ func TestMuxErrorCases(t *testing.T) {
 	}
 }
 
-// パラメータの特殊文字処理のテスト
+// Special character handling in parameters tests
 func TestMuxSpecialCharacters(t *testing.T) {
 	r := NewRouter()
 
@@ -464,7 +464,7 @@ func TestMuxSpecialCharacters(t *testing.T) {
 		_, _ = w.Write([]byte("file"))
 	})
 
-	// 特殊文字を含むパラメータのテスト
+	// Test parameters with special characters
 	tests := []struct {
 		path     string
 		wantBody string
@@ -495,27 +495,27 @@ func TestMuxSpecialCharacters(t *testing.T) {
 	}
 }
 
-// ルーティングの境界値テスト
+// Routing boundary value tests
 func TestMuxBoundaryRouting(t *testing.T) {
 	r := NewRouter()
 
-	// 空のパスのテスト
+	// Empty path test
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("root"))
 	})
 
-	// 長いパスのテスト
+	// Long path test
 	longPath := "/a/b/c/d/e/f/g/h/i/j/k/l/m/n/o/p"
 	r.Get(longPath, func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("long"))
 	})
 
-	// 複数のパラメータ
+	// Multiple parameters
 	r.Get("/:a/:b/:c/:d/:e", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(URLParam(r, "a") + "-" + URLParam(r, "e")))
 	})
 
-	// 末尾スラッシュの扱い
+	// Trailing slash handling
 	r.Get("/trailing", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("no-slash"))
 	})
@@ -537,37 +537,37 @@ func TestMuxBoundaryRouting(t *testing.T) {
 	}
 }
 
-// ミドルウェアのエラーハンドリングテスト
+// Middleware error handling tests
 func TestMuxMiddlewareError(t *testing.T) {
 	r := NewRouter()
 
-	// パニックを起こすミドルウェア
+	// Middleware that panics
 	panicMiddleware := func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			panic("middleware panic")
 		})
 	}
 
-	// エラーレスポンスを返すミドルウェア
+	// Middleware that returns error response
 	errorMiddleware := func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusInternalServerError)
 			_, _ = w.Write([]byte("error"))
-			// nextを呼ばない
+			// Don't call next
 		})
 	}
 
-	// 正常なルート
+	// Normal route
 	r.Get("/normal", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("ok"))
 	})
 
-	// エラーミドルウェアを適用したルート
+	// Route with error middleware applied
 	r.Get("/error", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("should not reach"))
 	}, errorMiddleware)
 
-	// パニックミドルウェアのテストは別途recover処理が必要なため、ここでは省略
+	// Panic middleware test is omitted here as it requires separate recover handling
 	_ = panicMiddleware
 
 	if err := Verify(r,
@@ -580,11 +580,11 @@ func TestMuxMiddlewareError(t *testing.T) {
 	}
 }
 
-// 同じパスで異なるパラメータ名のテスト
+// Test different parameter names on the same path
 func TestMuxDifferentParamNames(t *testing.T) {
 	r := NewRouter()
 
-	// 異なるパラメータ名で同じ位置にパラメータを持つルート
+	// Routes with parameters at the same position but with different parameter names
 	r.Get("/a/:foo/c", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("foo=" + URLParam(r, "foo")))
 	})

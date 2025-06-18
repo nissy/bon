@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-// 拡張されたVerifyヘルパー - HTTPメソッドをサポート
+// Extended Verify helper - supports HTTP methods
 func VerifyExtended(h http.Handler, ws []*Want) error {
 	sv := httptest.NewServer(h)
 	defer sv.Close()
@@ -17,7 +17,7 @@ func VerifyExtended(h http.Handler, ws []*Want) error {
 		method := "GET"
 		path := v.Path
 		
-		// メソッドがパスに含まれている場合は分離
+		// Separate method if included in path
 		if strings.Contains(path, ":") {
 			parts := strings.SplitN(path, ":", 2)
 			if len(parts) == 2 {
@@ -26,13 +26,13 @@ func VerifyExtended(h http.Handler, ws []*Want) error {
 			}
 		}
 		
-		// HTTPリクエストを作成
+		// Create HTTP request
 		req, err := http.NewRequest(method, sv.URL+path, nil)
 		if err != nil {
 			return err
 		}
 		
-		// リクエストを実行
+		// Execute request
 		client := &http.Client{}
 		res, err := client.Do(req)
 		if err != nil {

@@ -9,11 +9,11 @@ import (
 	"testing"
 )
 
-// ミドルウェア適用順序テスト
+// Middleware application order test
 func TestMiddlewareApplicationOrder(t *testing.T) {
 	r := NewRouter()
 	
-	// 複数のミドルウェアを順番に追加
+	// Add multiple middlewares in order
 	r.Use(WriteMiddleware("1"))
 	r.Use(WriteMiddleware("-2"))
 	r.Use(WriteMiddleware("-3"))
@@ -30,26 +30,26 @@ func TestMiddlewareApplicationOrder(t *testing.T) {
 	}
 }
 
-// Groupレベルでのミドルウェア適用順序テスト
+// Group level middleware application order test
 func TestGroupMiddlewareOrder(t *testing.T) {
 	r := NewRouter()
 	
-	// ルートレベルミドルウェア
+	// Root level middleware
 	r.Use(WriteMiddleware("ROOT"))
 	
-	// 第1レベルグループ
+	// Level 1 group
 	g1 := r.Group("/api")
 	g1.Use(WriteMiddleware("-G1"))
 	
-	// 第2レベルグループ
+	// Level 2 group
 	g2 := g1.Group("/v1")
 	g2.Use(WriteMiddleware("-G2"))
 	
-	// 第3レベルグループ
+	// Level 3 group
 	g3 := g2.Group("/users")
 	g3.Use(WriteMiddleware("-G3"))
 	
-	// エンドポイント
+	// Endpoint
 	g3.Get("/:id", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("-ENDPOINT"))
 	})
@@ -61,18 +61,18 @@ func TestGroupMiddlewareOrder(t *testing.T) {
 	}
 }
 
-// ルート固有ミドルウェアとグローバルミドルウェアの順序テスト
+// Route-specific middleware and global middleware order test
 func TestRouteSpecificMiddlewareOrder(t *testing.T) {
 	r := NewRouter()
 	
-	// グローバルミドルウェア
+	// Global middleware
 	r.Use(WriteMiddleware("GLOBAL"))
 	
-	// グループミドルウェア
+	// Group middleware
 	api := r.Group("/api")
 	api.Use(WriteMiddleware("-GROUP"))
 	
-	// ルート固有ミドルウェア（複数）
+	// Route-specific middleware (multiple)
 	api.Get("/endpoint", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("-HANDLER"))
 	}, WriteMiddleware("-ROUTE1"), WriteMiddleware("-ROUTE2"))
@@ -84,24 +84,24 @@ func TestRouteSpecificMiddlewareOrder(t *testing.T) {
 	}
 }
 
-// 異なるエンドポイントでの独立したミドルウェアテスト
+// Independent middleware application for different endpoints test
 func TestIndependentMiddlewareApplication(t *testing.T) {
 	r := NewRouter()
 	
-	// 共通ミドルウェア
+	// Common middleware
 	r.Use(WriteMiddleware("COMMON"))
 	
-	// エンドポイント1 - 追加ミドルウェアなし
+	// Endpoint 1 - no additional middleware
 	r.Get("/endpoint1", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("-EP1"))
 	})
 	
-	// エンドポイント2 - 1つの追加ミドルウェア
+	// Endpoint 2 - one additional middleware
 	r.Get("/endpoint2", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("-EP2"))
 	}, WriteMiddleware("-EXTRA"))
 	
-	// エンドポイント3 - 複数の追加ミドルウェア
+	// Endpoint 3 - multiple additional middlewares
 	r.Get("/endpoint3", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("-EP3"))
 	}, WriteMiddleware("-EXTRA1"), WriteMiddleware("-EXTRA2"))
@@ -115,14 +115,14 @@ func TestIndependentMiddlewareApplication(t *testing.T) {
 	}
 }
 
-// テスト用のコンテキストキー型を定義
+// Define context key type for testing
 type middlewareCtxKey string
 
-// ミドルウェアでのリクエスト変更テスト
+// Middleware request modification test
 func TestMiddlewareRequestModification(t *testing.T) {
 	r := NewRouter()
 	
-	// リクエストヘッダーを追加するミドルウェア
+	// Middleware that adds request headers
 	headerMiddleware := func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			r.Header.Set("X-Custom-Header", "middleware-value")
@@ -130,7 +130,7 @@ func TestMiddlewareRequestModification(t *testing.T) {
 		})
 	}
 	
-	// コンテキスト値を追加するミドルウェア
+	// Middleware that adds context value
 	contextMiddleware := func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := context.WithValue(r.Context(), middlewareCtxKey("middleware-key"), "middleware-context-value")
@@ -158,11 +158,11 @@ func TestMiddlewareRequestModification(t *testing.T) {
 	}
 }
 
-// ミドルウェアでのレスポンス変更テスト
+// Middleware response modification test
 func TestMiddlewareResponseModification(t *testing.T) {
 	r := NewRouter()
 	
-	// レスポンスヘッダーを追加するミドルウェア
+	// Middleware that adds response headers
 	responseHeaderMiddleware := func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("X-Response-Header", "response-value")
@@ -170,13 +170,13 @@ func TestMiddlewareResponseModification(t *testing.T) {
 		})
 	}
 	
-	// レスポンスを後処理するミドルウェア
+	// Middleware that post-processes response
 	responseProcessingMiddleware := func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// カスタムResponseWriterでレスポンスをキャプチャ
+			// Capture response with custom ResponseWriter
 			originalWriter := w
 			next.ServeHTTP(originalWriter, r)
-			// ここで追加のヘッダー設定
+			// Set additional headers here
 			originalWriter.Header().Set("X-Post-Process", "processed")
 		})
 	}
@@ -188,7 +188,7 @@ func TestMiddlewareResponseModification(t *testing.T) {
 		_, _ = w.Write([]byte("response-body"))
 	})
 	
-	// ヘッダーの確認はVerifyヘルパーでは困難なため、基本的な動作確認のみ
+	// Header verification is difficult with Verify helper, so only basic operation check
 	if err := Verify(r, []*Want{
 		{"/response", 200, "response-body"},
 	}); err != nil {
@@ -196,11 +196,11 @@ func TestMiddlewareResponseModification(t *testing.T) {
 	}
 }
 
-// 条件付きミドルウェア適用テスト
+// Conditional middleware application test
 func TestConditionalMiddleware(t *testing.T) {
 	r := NewRouter()
 	
-	// パスに応じて異なる処理をするミドルウェア
+	// Middleware that processes differently based on path
 	conditionalMiddleware := func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if strings.HasPrefix(r.URL.Path, "/admin") {
@@ -238,44 +238,44 @@ func TestConditionalMiddleware(t *testing.T) {
 	}
 }
 
-// ミドルウェアチェーンの早期終了テスト
+// Middleware chain early termination test
 func TestMiddlewareEarlyTermination(t *testing.T) {
 	r := NewRouter()
 	
-	// 認証をシミュレートするミドルウェア
+	// Middleware that simulates authentication
 	authMiddleware := func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			auth := r.Header.Get("Authorization")
 			if auth != "Bearer valid-token" {
 				w.WriteHeader(http.StatusUnauthorized)
 				_, _ = w.Write([]byte("Unauthorized"))
-				return // チェーンを終了
+				return // Terminate chain
 			}
 			next.ServeHTTP(w, r)
 		})
 	}
 	
 	r.Use(authMiddleware)
-	r.Use(WriteMiddleware("AFTER-AUTH")) // 認証成功時のみ実行される
+	r.Use(WriteMiddleware("AFTER-AUTH")) // Executed only on successful authentication
 	
 	r.Get("/protected", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("-PROTECTED"))
 	})
 	
-	// 認証なし（失敗）
+	// No authentication (failure)
 	req1, _ := http.NewRequest("GET", "/protected", nil)
 	if err := VerifyRequest(r, req1, 401, "Unauthorized"); err != nil {
 		t.Fatal(err)
 	}
 	
-	// 無効な認証（失敗）
+	// Invalid authentication (failure)
 	req2, _ := http.NewRequest("GET", "/protected", nil)
 	req2.Header.Set("Authorization", "Bearer invalid-token")
 	if err := VerifyRequest(r, req2, 401, "Unauthorized"); err != nil {
 		t.Fatal(err)
 	}
 	
-	// 有効な認証（成功）
+	// Valid authentication (success)
 	req3, _ := http.NewRequest("GET", "/protected", nil)
 	req3.Header.Set("Authorization", "Bearer valid-token")
 	if err := VerifyRequest(r, req3, 200, "AFTER-AUTH-PROTECTED"); err != nil {
@@ -283,39 +283,39 @@ func TestMiddlewareEarlyTermination(t *testing.T) {
 	}
 }
 
-// 複数のGroupでの異なるミドルウェア設定テスト
+// Different middleware settings in multiple groups test
 func TestMultipleGroupsMiddleware(t *testing.T) {
 	r := NewRouter()
 	
-	// 共通ミドルウェア
+	// Common middleware
 	r.Use(WriteMiddleware("ROOT"))
 	
-	// 管理者グループ
+	// Admin group
 	admin := r.Group("/admin")
 	admin.Use(WriteMiddleware("-ADMIN"))
 	admin.Get("/users", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("-USERS"))
 	})
 	
-	// APIグループ
+	// API group
 	api := r.Group("/api")
 	api.Use(WriteMiddleware("-API"))
 	
-	// API v1サブグループ
+	// API v1 subgroup
 	v1 := api.Group("/v1")
 	v1.Use(WriteMiddleware("-V1"))
 	v1.Get("/data", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("-DATA"))
 	})
 	
-	// API v2サブグループ
+	// API v2 subgroup
 	v2 := api.Group("/v2")
 	v2.Use(WriteMiddleware("-V2"))
 	v2.Get("/info", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("-INFO"))
 	})
 	
-	// パブリックグループ（ミドルウェアなし）
+	// Public group (no middleware)
 	public := r.Group("/public")
 	public.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("-HEALTH"))
@@ -331,18 +331,18 @@ func TestMultipleGroupsMiddleware(t *testing.T) {
 	}
 }
 
-// パフォーマンス影響テスト
+// Performance impact test
 func TestMiddlewarePerformanceImpact(t *testing.T) {
 	r := NewRouter()
 	
-	// 軽量ミドルウェア
+	// Lightweight middleware
 	lightMiddleware := func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			next.ServeHTTP(w, r)
 		})
 	}
 	
-	// 10個の軽量ミドルウェアを追加
+	// Add 10 lightweight middlewares
 	for i := 0; i < 10; i++ {
 		r.Use(lightMiddleware)
 	}
@@ -351,7 +351,7 @@ func TestMiddlewarePerformanceImpact(t *testing.T) {
 		_, _ = w.Write([]byte("performance-test"))
 	})
 	
-	// パフォーマンステストの基本的な動作確認
+	// Basic operation check for performance test
 	if err := Verify(r, []*Want{
 		{"/performance", 200, "performance-test"},
 	}); err != nil {
@@ -359,7 +359,7 @@ func TestMiddlewarePerformanceImpact(t *testing.T) {
 	}
 }
 
-// ヘルパー関数：個別リクエストの検証
+// Helper function: Individual request verification
 func VerifyRequest(handler http.Handler, req *http.Request, expectedStatus int, expectedBody string) error {
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)

@@ -9,11 +9,11 @@ import (
 	"github.com/nissy/bon/middleware"
 )
 
-// CORS ミドルウェアテスト
+// CORS middleware test
 func TestCORSMiddleware(t *testing.T) {
 	r := NewRouter()
 	
-	// CORS設定
+	// CORS configuration
 	corsConfig := middleware.AccessControlConfig{
 		AllowOrigin:      "*",
 		AllowCredentials: true,
@@ -29,7 +29,7 @@ func TestCORSMiddleware(t *testing.T) {
 		_, _ = w.Write([]byte("cors-response"))
 	})
 	
-	// CORSヘッダーの確認
+	// Verify CORS headers
 	req := httptest.NewRequest("GET", "/cors-test", nil)
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
@@ -38,7 +38,7 @@ func TestCORSMiddleware(t *testing.T) {
 		t.Fatalf("Expected status 200, got %d", rec.Code)
 	}
 	
-	// CORSヘッダーの検証
+	// Validate CORS headers
 	headers := rec.Header()
 	
 	if origin := headers.Get("Access-Control-Allow-Origin"); origin != "*" {
@@ -70,11 +70,11 @@ func TestCORSMiddleware(t *testing.T) {
 	}
 }
 
-// BasicAuth ミドルウェアテスト
+// BasicAuth middleware test
 func TestBasicAuthMiddleware(t *testing.T) {
 	r := NewRouter()
 	
-	// ユーザー設定
+	// User configuration
 	users := []middleware.BasicAuthUser{
 		{Name: "admin", Password: "secret"},
 		{Name: "user", Password: "password"},
@@ -86,7 +86,7 @@ func TestBasicAuthMiddleware(t *testing.T) {
 		_, _ = w.Write([]byte("protected-content"))
 	})
 	
-	// 認証なしでのアクセス
+	// Access without authentication
 	req1 := httptest.NewRequest("GET", "/protected", nil)
 	rec1 := httptest.NewRecorder()
 	r.ServeHTTP(rec1, req1)
@@ -99,7 +99,7 @@ func TestBasicAuthMiddleware(t *testing.T) {
 		t.Errorf("Expected body: Unauthorized, got %s", body)
 	}
 	
-	// 無効な認証情報
+	// Invalid authentication credentials
 	req2 := httptest.NewRequest("GET", "/protected", nil)
 	req2.SetBasicAuth("admin", "wrongpassword")
 	rec2 := httptest.NewRecorder()
@@ -109,7 +109,7 @@ func TestBasicAuthMiddleware(t *testing.T) {
 		t.Errorf("Expected status 401 for wrong auth, got %d", rec2.Code)
 	}
 	
-	// 有効な認証情報 - admin
+	// Valid authentication credentials - admin
 	req3 := httptest.NewRequest("GET", "/protected", nil)
 	req3.SetBasicAuth("admin", "secret")
 	rec3 := httptest.NewRecorder()
@@ -123,7 +123,7 @@ func TestBasicAuthMiddleware(t *testing.T) {
 		t.Errorf("Expected body: protected-content, got %s", body)
 	}
 	
-	// 有効な認証情報 - user
+	// Valid authentication credentials - user
 	req4 := httptest.NewRequest("GET", "/protected", nil)
 	req4.SetBasicAuth("user", "password")
 	rec4 := httptest.NewRecorder()
@@ -134,29 +134,29 @@ func TestBasicAuthMiddleware(t *testing.T) {
 	}
 }
 
-// Timeout ミドルウェアテスト
+// Timeout middleware test
 func TestTimeoutMiddleware(t *testing.T) {
 	r := NewRouter()
 	
-	// 100ms のタイムアウト設定
+	// 100ms timeout setting
 	r.Use(middleware.Timeout(100 * time.Millisecond))
 	
-	// 即座にレスポンスするエンドポイント
+	// Endpoint that responds immediately
 	r.Get("/fast", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("fast-response"))
 	})
 	
-	// 遅いレスポンスのエンドポイント
+	// Endpoint with slow response
 	r.Get("/slow", func(w http.ResponseWriter, r *http.Request) {
 		select {
-		case <-time.After(200 * time.Millisecond): // タイムアウトより長い
+		case <-time.After(200 * time.Millisecond): // Longer than timeout
 			_, _ = w.Write([]byte("slow-response"))
 		case <-r.Context().Done():
-			return // タイムアウトで中断
+			return // Interrupted by timeout
 		}
 	})
 	
-	// 高速レスポンスのテスト
+	// Fast response test
 	req1 := httptest.NewRequest("GET", "/fast", nil)
 	rec1 := httptest.NewRecorder()
 	r.ServeHTTP(rec1, req1)
@@ -169,23 +169,23 @@ func TestTimeoutMiddleware(t *testing.T) {
 		t.Errorf("Expected body: fast-response, got %s", body)
 	}
 	
-	// タイムアウトテスト
+	// Timeout test
 	req2 := httptest.NewRequest("GET", "/slow", nil)
 	rec2 := httptest.NewRecorder()
 	r.ServeHTTP(rec2, req2)
 	
-	// タイムアウトが発生するはずだが、テスト環境では処理が複雑になるため
-	// 基本的な動作確認のみ行う
+	// Timeout should occur, but testing environment makes it complex
+	// so we only do basic operation check
 	if rec2.Code != 200 && rec2.Code != 504 {
 		t.Logf("Timeout test: status code %d (expected 200 or 504)", rec2.Code)
 	}
 }
 
-// 複数ミドルウェアの組み合わせテスト
+// Combined middleware test
 func TestCombinedMiddleware(t *testing.T) {
 	r := NewRouter()
 	
-	// 複数のミドルウェアを組み合わせ
+	// Combine multiple middlewares
 	corsConfig := middleware.AccessControlConfig{
 		AllowOrigin: "*",
 		AllowMethods: []string{"GET", "POST"},
@@ -195,7 +195,7 @@ func TestCombinedMiddleware(t *testing.T) {
 		{Name: "admin", Password: "secret"},
 	}
 	
-	// 適用順序：CORS -> BasicAuth -> Timeout -> カスタム
+	// Application order: CORS -> BasicAuth -> Timeout -> Custom
 	r.Use(middleware.CORS(corsConfig))
 	r.Use(middleware.BasicAuth(users))
 	r.Use(middleware.Timeout(1 * time.Second))
@@ -205,7 +205,7 @@ func TestCombinedMiddleware(t *testing.T) {
 		_, _ = w.Write([]byte("-COMBINED"))
 	})
 	
-	// 認証なしでのアクセス（BasicAuthで拒否されるはず）
+	// Access without authentication (should be rejected by BasicAuth)
 	req1 := httptest.NewRequest("GET", "/combined", nil)
 	rec1 := httptest.NewRecorder()
 	r.ServeHTTP(rec1, req1)
@@ -214,12 +214,12 @@ func TestCombinedMiddleware(t *testing.T) {
 		t.Errorf("Expected status 401 for no auth, got %d", rec1.Code)
 	}
 	
-	// CORSヘッダーはBasicAuthで拒否されてもセットされるはず
+	// CORS headers should be set even when rejected by BasicAuth
 	if origin := rec1.Header().Get("Access-Control-Allow-Origin"); origin != "*" {
 		t.Errorf("Expected CORS header even with auth failure, got %s", origin)
 	}
 	
-	// 有効な認証でのアクセス
+	// Access with valid authentication
 	req2 := httptest.NewRequest("GET", "/combined", nil)
 	req2.SetBasicAuth("admin", "secret")
 	rec2 := httptest.NewRecorder()
@@ -229,7 +229,7 @@ func TestCombinedMiddleware(t *testing.T) {
 		t.Errorf("Expected status 200 for valid auth, got %d", rec2.Code)
 	}
 	
-	// すべてのミドルウェアが適用されているか確認
+	// Verify all middlewares are applied
 	if origin := rec2.Header().Get("Access-Control-Allow-Origin"); origin != "*" {
 		t.Errorf("Expected CORS header with valid auth, got %s", origin)
 	}
@@ -239,17 +239,17 @@ func TestCombinedMiddleware(t *testing.T) {
 	}
 }
 
-// Group内でのミドルウェア組み合わせテスト
+// Middleware combination test within groups
 func TestGroupMiddlewareCombination(t *testing.T) {
 	r := NewRouter()
 	
-	// グローバルCORS
+	// Global CORS
 	corsConfig := middleware.AccessControlConfig{
 		AllowOrigin: "*",
 	}
 	r.Use(middleware.CORS(corsConfig))
 	
-	// 管理者エリア（認証が必要）
+	// Admin area (authentication required)
 	admin := r.Group("/admin")
 	adminUsers := []middleware.BasicAuthUser{
 		{Name: "admin", Password: "secret"},
@@ -261,7 +261,7 @@ func TestGroupMiddlewareCombination(t *testing.T) {
 		_, _ = w.Write([]byte("-DASHBOARD"))
 	})
 	
-	// パブリックエリア（認証不要）
+	// Public area (no authentication required)
 	public := r.Group("/public")
 	public.Use(WriteMiddleware("PUBLIC"))
 	
@@ -269,7 +269,7 @@ func TestGroupMiddlewareCombination(t *testing.T) {
 		_, _ = w.Write([]byte("-INFO"))
 	})
 	
-	// パブリックエリアのテスト
+	// Public area test
 	req1 := httptest.NewRequest("GET", "/public/info", nil)
 	rec1 := httptest.NewRecorder()
 	r.ServeHTTP(rec1, req1)
@@ -282,7 +282,7 @@ func TestGroupMiddlewareCombination(t *testing.T) {
 		t.Errorf("Expected body: PUBLIC-INFO, got %s", body)
 	}
 	
-	// 管理者エリア（認証なし）
+	// Admin area (no authentication)
 	req2 := httptest.NewRequest("GET", "/admin/dashboard", nil)
 	rec2 := httptest.NewRecorder()
 	r.ServeHTTP(rec2, req2)
@@ -291,7 +291,7 @@ func TestGroupMiddlewareCombination(t *testing.T) {
 		t.Errorf("Expected status 401 for admin area without auth, got %d", rec2.Code)
 	}
 	
-	// 管理者エリア（認証あり）
+	// Admin area (with authentication)
 	req3 := httptest.NewRequest("GET", "/admin/dashboard", nil)
 	req3.SetBasicAuth("admin", "secret")
 	rec3 := httptest.NewRecorder()

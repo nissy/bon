@@ -7,14 +7,14 @@ import (
 	"testing"
 )
 
-// 現在の実装をベンチマーク
+// Benchmark current implementation
 func BenchmarkCurrentImplementation(b *testing.B) {
 	r := NewRouter()
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	// 様々なルートを登録
+	// Register various routes
 	for i := 0; i < 10; i++ {
 		r.Get(fmt.Sprintf("/static/path%d", i), handler)
 		r.Get(fmt.Sprintf("/users/:id%d", i), handler)
@@ -35,7 +35,7 @@ func BenchmarkCurrentImplementation(b *testing.B) {
 	}
 }
 
-// シンプルなマップベースの実装（静的ルートのみ）
+// Simple map-based implementation (static routes only)
 func BenchmarkSimpleMapRouter(b *testing.B) {
 	routes := make(map[string]http.HandlerFunc)
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -64,9 +64,9 @@ func BenchmarkSimpleMapRouter(b *testing.B) {
 	}
 }
 
-// 理論的に最適化されたケース（事前計算済み）
+// Theoretically optimized case (pre-computed)
 func BenchmarkOptimalCase(b *testing.B) {
-	// 最も単純なケース：直接関数呼び出し
+	// Simplest case: direct function call
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})

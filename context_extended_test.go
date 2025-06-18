@@ -6,11 +6,11 @@ import (
 	"testing"
 )
 
-// Context大量パラメータテスト
+// Context many parameters test
 func TestContextManyParameters(t *testing.T) {
 	r := NewRouter()
 
-	// 10個のパラメータを持つルート
+	// Route with 10 parameters
 	r.Get("/:p1/:p2/:p3/:p4/:p5/:p6/:p7/:p8/:p9/:p10", func(w http.ResponseWriter, r *http.Request) {
 		params := []string{
 			URLParam(r, "p1"), URLParam(r, "p2"), URLParam(r, "p3"),
@@ -36,7 +36,7 @@ func TestContextManyParameters(t *testing.T) {
 	}
 }
 
-// Context存在しないパラメータテスト
+// Context non-existent parameters test
 func TestContextNonExistentParameters(t *testing.T) {
 	r := NewRouter()
 
@@ -54,11 +54,11 @@ func TestContextNonExistentParameters(t *testing.T) {
 	}
 }
 
-// Context同一パラメータ名テスト
+// Context same parameter names test
 func TestContextSameParameterNames(t *testing.T) {
 	r := NewRouter()
 
-	// 異なるルートで同じパラメータ名
+	// Same parameter name in different routes
 	r.Get("/users/:id", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("user-" + URLParam(r, "id")))
 	})
@@ -80,7 +80,7 @@ func TestContextSameParameterNames(t *testing.T) {
 	}
 }
 
-// Context特殊文字パラメータテスト
+// Context special character parameters test
 func TestContextSpecialCharacterParameters(t *testing.T) {
 	r := NewRouter()
 
@@ -100,11 +100,11 @@ func TestContextSpecialCharacterParameters(t *testing.T) {
 	}
 }
 
-// Contextネストしたパラメータテスト
+// Context nested parameters test
 func TestContextNestedParameters(t *testing.T) {
 	r := NewRouter()
 
-	// Group内でのパラメータ
+	// Parameters within a Group
 	users := r.Group("/users/:userId")
 	users.Get("/profile", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("profile-" + URLParam(r, "userId")))
@@ -116,7 +116,7 @@ func TestContextNestedParameters(t *testing.T) {
 		_, _ = w.Write([]byte("user-" + userId + "-post-" + postId))
 	})
 	
-	// さらにネストしたGroup
+	// Further nested Group
 	posts := users.Group("/posts/:postId")
 	posts.Get("/comments/:commentId", func(w http.ResponseWriter, r *http.Request) {
 		userId := URLParam(r, "userId")
@@ -134,11 +134,11 @@ func TestContextNestedParameters(t *testing.T) {
 	}
 }
 
-// Context複数のコンテキスト値テスト
+// Context multiple context values test
 func TestContextMultipleValues(t *testing.T) {
 	r := NewRouter()
 
-	// 複数のコンテキスト値を設定するミドルウェア
+	// Middleware that sets multiple context values
 	type contextKey string
 	const (
 		userKey    contextKey = "user"
@@ -173,17 +173,17 @@ func TestContextMultipleValues(t *testing.T) {
 	}
 }
 
-// Contextプールのリサイクルテスト
+// Context pool recycling test
 func TestContextPoolRecycling(t *testing.T) {
 	r := NewRouter()
 
-	// パラメータを持つルートを大量実行してプールのリサイクルをテスト
+	// Test pool recycling by executing routes with parameters many times
 	r.Get("/pool/:id", func(w http.ResponseWriter, r *http.Request) {
 		id := URLParam(r, "id")
 		_, _ = w.Write([]byte("pool-" + id))
 	})
 	
-	// 複数回実行してプールが正常に動作することを確認
+	// Execute multiple times to confirm the pool works correctly
 	requests := []*Want{}
 	for i := 0; i < 100; i++ {
 		path := "/pool/" + string(rune('0'+(i%10)))
@@ -196,28 +196,28 @@ func TestContextPoolRecycling(t *testing.T) {
 	}
 }
 
-// Context異なるパラメータ数テスト
+// Context different parameter counts test
 func TestContextDifferentParameterCounts(t *testing.T) {
 	r := NewRouter()
 
-	// パラメータなし
+	// No parameters
 	r.Get("/zero", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("zero-params"))
 	})
 	
-	// 1個のパラメータ
+	// 1 parameter
 	r.Get("/one/:p1", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("one-" + URLParam(r, "p1")))
 	})
 	
-	// 2個のパラメータ
+	// 2 parameters
 	r.Get("/two/:p1/:p2", func(w http.ResponseWriter, r *http.Request) {
 		p1 := URLParam(r, "p1")
 		p2 := URLParam(r, "p2")
 		_, _ = w.Write([]byte("two-" + p1 + "-" + p2))
 	})
 	
-	// 5個のパラメータ
+	// 5 parameters
 	r.Get("/five/:p1/:p2/:p3/:p4/:p5", func(w http.ResponseWriter, r *http.Request) {
 		params := []string{
 			URLParam(r, "p1"), URLParam(r, "p2"), URLParam(r, "p3"),
@@ -240,7 +240,7 @@ func TestContextDifferentParameterCounts(t *testing.T) {
 	}
 }
 
-// Context並行リクエスト処理テスト
+// Context concurrent requests processing test
 func TestContextConcurrentRequests(t *testing.T) {
 	r := NewRouter()
 
@@ -249,7 +249,7 @@ func TestContextConcurrentRequests(t *testing.T) {
 		_, _ = w.Write([]byte("concurrent-" + id))
 	})
 
-	// 同じルートに対する複数の異なるパラメータでのリクエスト
+	// Multiple requests with different parameters to the same route
 	if err := Verify(r, []*Want{
 		{"/concurrent/1", 200, "concurrent-1"},
 		{"/concurrent/2", 200, "concurrent-2"},
@@ -261,17 +261,17 @@ func TestContextConcurrentRequests(t *testing.T) {
 	}
 }
 
-// Contextエラー条件テスト
+// Context error conditions test
 func TestContextErrorConditions(t *testing.T) {
 	r := NewRouter()
 
-	// パラメータがないルートでのURLParam呼び出し
+	// URLParam call on route without parameters
 	r.Get("/no-params", func(w http.ResponseWriter, r *http.Request) {
 		param := URLParam(r, "nonexistent")
 		_, _ = w.Write([]byte("no-params-" + param))
 	})
 	
-	// 正常なパラメータルート
+	// Normal parameter route
 	r.Get("/with-params/:id", func(w http.ResponseWriter, r *http.Request) {
 		id := URLParam(r, "id")
 		nonexistent := URLParam(r, "nonexistent")

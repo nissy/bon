@@ -13,7 +13,7 @@ func BenchmarkMuxStaticRoute(b *testing.B) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	// 静的ルートを100個登録
+	// Register 100 static routes
 	for i := 0; i < 100; i++ {
 		path := fmt.Sprintf("/static/path/%d", i)
 		r.Get(path, handler)
@@ -35,7 +35,7 @@ func BenchmarkMuxParamRoute(b *testing.B) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	// パラメータルートを登録
+	// Register parameter routes
 	r.Get("/users/:id", handler)
 	r.Get("/posts/:id/comments/:commentId", handler)
 	r.Get("/api/v1/resources/:resourceId/items/:itemId", handler)
@@ -55,7 +55,7 @@ func BenchmarkMuxWildcardRoute(b *testing.B) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	// ワイルドカードルートを登録
+	// Register wildcard routes
 	r.Get("/files/*", handler)
 	r.Get("/api/*", handler)
 	r.Get("/static/*", handler)
@@ -75,15 +75,15 @@ func BenchmarkMuxMixed(b *testing.B) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	// 混合ルートを登録
+	// Register mixed routes
 	for i := 0; i < 50; i++ {
-		// 静的ルート
+		// Static route
 		r.Get(fmt.Sprintf("/static/%d", i), handler)
-		// パラメータルート
+		// Parameter route
 		r.Get(fmt.Sprintf("/users/%d/:id", i), handler)
 	}
 
-	// ベンチマーク用のリクエスト
+	// Requests for benchmarking
 	requests := []*http.Request{
 		httptest.NewRequest("GET", "/static/25", nil),
 		httptest.NewRequest("GET", "/users/25/123", nil),
@@ -103,7 +103,7 @@ func BenchmarkMuxNotFound(b *testing.B) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	// いくつかのルートを登録
+	// Register some routes
 	r.Get("/users/:id", handler)
 	r.Get("/posts/:id", handler)
 	r.Get("/api/*", handler)

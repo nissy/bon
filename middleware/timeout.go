@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// timeoutWriter は ResponseWriter をラップして書き込み状態を追跡
+// timeoutWriter wraps ResponseWriter to track write state
 type timeoutWriter struct {
 	http.ResponseWriter
 	written bool
@@ -46,11 +46,11 @@ func Timeout(timeout time.Duration) func(next http.Handler) http.Handler {
 			go func() {
 				defer func() {
 					if p := recover(); p != nil {
-						// パニックをキャプチャして転送
+						// Capture and forward panic
 						select {
 						case panicChan <- p:
 						case <-ctx.Done():
-							// タイムアウト済みの場合は無視
+							// Ignore if already timed out
 						}
 					}
 					close(done)
@@ -60,22 +60,22 @@ func Timeout(timeout time.Duration) func(next http.Handler) http.Handler {
 
 			select {
 			case <-done:
-				// 正常に完了
+				// Completed successfully
 			case p := <-panicChan:
-				// パニックを再発生
+				// Re-panic
 				panic(p)
 			case <-ctx.Done():
-				// タイムアウト発生
+				// Timeout occurred
 				tw.mu.Lock()
 				defer tw.mu.Unlock()
 				if !tw.written {
 					tw.written = true
 					tw.ResponseWriter.WriteHeader(http.StatusGatewayTimeout)
-					// タイムアウトメッセージを書き込み（エラーは無視）
+					// Write timeout message (ignore errors)
 					_, _ = tw.ResponseWriter.Write([]byte("Gateway Timeout"))
 				}
 				
-				// goroutineの完了を待つ（リークを防ぐ）
+				// Wait for goroutine to complete (prevent leaks)
 				<-done
 			}
 		}

@@ -6,25 +6,25 @@ import (
 	"testing"
 )
 
-// 統合テスト：複雑なアプリケーション構造
+// Integration test: complex application structure
 func TestIntegrationComplexApplication(t *testing.T) {
 	r := NewRouter()
 
-	// グローバルミドルウェア
+	// Global middleware
 	r.Use(WriteMiddleware("GLOBAL"))
 
-	// 認証が必要なAPIエンドポイント
+	// API endpoints requiring authentication
 	api := r.Group("/api")
 	api.Use(WriteMiddleware("-AUTH"))
 	
-	// APIバージョニング
+	// API versioning
 	v1 := api.Group("/v1")
 	v1.Use(WriteMiddleware("-V1"))
 	
 	v2 := api.Group("/v2")
 	v2.Use(WriteMiddleware("-V2"))
 	
-	// v1 ユーザーエンドポイント
+	// v1 user endpoints
 	v1Users := v1.Group("/users")
 	v1Users.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("-LIST-USERS"))
@@ -42,7 +42,7 @@ func TestIntegrationComplexApplication(t *testing.T) {
 		_, _ = w.Write([]byte("-DELETE-USER-" + URLParam(r, "id")))
 	})
 	
-	// v1 投稿エンドポイント
+	// v1 post endpoints
 	v1Posts := v1.Group("/posts")
 	v1Posts.Get("/:postId/comments/:commentId", func(w http.ResponseWriter, r *http.Request) {
 		postId := URLParam(r, "postId")
@@ -50,12 +50,12 @@ func TestIntegrationComplexApplication(t *testing.T) {
 		_, _ = w.Write([]byte("-GET-COMMENT-" + postId + "-" + commentId))
 	})
 	
-	// v2 は新しいデータ構造
+	// v2 has new data structure
 	v2.Get("/users/:id/profile", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("-V2-PROFILE-" + URLParam(r, "id")))
 	})
 	
-	// パブリックエンドポイント（認証不要）
+	// Public endpoints (no authentication required)
 	public := r.Group("/public")
 	public.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("-HEALTH"))
@@ -64,7 +64,7 @@ func TestIntegrationComplexApplication(t *testing.T) {
 		_, _ = w.Write([]byte("-DOCS"))
 	})
 
-	// 管理者エンドポイント
+	// Admin endpoints
 	admin := r.Group("/admin")
 	admin.Use(WriteMiddleware("-ADMIN"))
 	admin.Get("/stats", func(w http.ResponseWriter, r *http.Request) {
@@ -87,11 +87,11 @@ func TestIntegrationComplexApplication(t *testing.T) {
 	}
 }
 
-// エッジケース：空文字列とnull値
+// Edge cases: empty strings and null values
 func TestEdgeCasesEmptyAndNull(t *testing.T) {
 	r := NewRouter()
 
-	// 空文字列パラメータ
+	// Empty string parameter
 	r.Get("/empty/:param", func(w http.ResponseWriter, r *http.Request) {
 		param := URLParam(r, "param")
 		if param == "" {
@@ -101,7 +101,7 @@ func TestEdgeCasesEmptyAndNull(t *testing.T) {
 		}
 	})
 	
-	// 複数の空文字列パラメータ
+	// Multiple empty string parameters
 	r.Get("/multi/:p1/:p2/:p3", func(w http.ResponseWriter, r *http.Request) {
 		p1 := URLParam(r, "p1")
 		p2 := URLParam(r, "p2")
@@ -125,17 +125,17 @@ func TestEdgeCasesEmptyAndNull(t *testing.T) {
 	}
 }
 
-// エッジケース：非常に長いパス
+// Edge cases: very long paths
 func TestEdgeCasesLongPaths(t *testing.T) {
 	r := NewRouter()
 
-	// 長い静的パス
+	// Long static path
 	longPath := "/very" + strings.Repeat("/long", 50) + "/path"
 	r.Get(longPath, func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("long-static-path"))
 	})
 	
-	// 長いパラメータ値
+	// Long parameter value
 	r.Get("/param/:value", func(w http.ResponseWriter, r *http.Request) {
 		value := URLParam(r, "value")
 		if len(value) > 100 {
@@ -145,7 +145,7 @@ func TestEdgeCasesLongPaths(t *testing.T) {
 		}
 	})
 	
-	// 多くのパラメータを持つ長いパス
+	// Long path with many parameters
 	manyParamsPath := ""
 	for i := 0; i < 20; i++ {
 		manyParamsPath += "/:p" + string(rune('0'+(i%10)))
@@ -173,11 +173,11 @@ func TestEdgeCasesLongPaths(t *testing.T) {
 	}
 }
 
-// エッジケース：特殊なHTTPステータス
+// Edge cases: special HTTP statuses
 func TestEdgeCasesHTTPStatus(t *testing.T) {
 	r := NewRouter()
 
-	// 様々なステータスコードを返すエンドポイント
+	// Endpoints returning various status codes
 	r.Get("/status/200", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
 		_, _ = w.Write([]byte("OK"))
@@ -198,7 +198,7 @@ func TestEdgeCasesHTTPStatus(t *testing.T) {
 		_, _ = w.Write([]byte("Internal Server Error"))
 	})
 	
-	// レスポンスボディなし
+	// No response body
 	r.Get("/no-body", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(204)
 	})
@@ -214,11 +214,11 @@ func TestEdgeCasesHTTPStatus(t *testing.T) {
 	}
 }
 
-// エッジケース：同時ルート競合
+// Edge cases: concurrent route conflicts
 func TestEdgeCasesRouteConflicts(t *testing.T) {
 	r := NewRouter()
 
-	// 静的ルート vs パラメータルート
+	// Static route vs parameter route
 	r.Get("/static", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("static-route"))
 	})
@@ -227,7 +227,7 @@ func TestEdgeCasesRouteConflicts(t *testing.T) {
 		_, _ = w.Write([]byte("param-" + URLParam(r, "param")))
 	})
 	
-	// より具体的な静的ルート vs 汎用パラメータルート
+	// More specific static route vs generic parameter route
 	r.Get("/api/users", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("api-users-static"))
 	})
@@ -236,7 +236,7 @@ func TestEdgeCasesRouteConflicts(t *testing.T) {
 		_, _ = w.Write([]byte("api-resource-" + URLParam(r, "resource")))
 	})
 	
-	// パラメータルート vs ワイルドカード
+	// Parameter route vs wildcard
 	r.Get("/files/:filename", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("file-" + URLParam(r, "filename")))
 	})
@@ -246,22 +246,22 @@ func TestEdgeCasesRouteConflicts(t *testing.T) {
 	})
 
 	if err := Verify(r, []*Want{
-		{"/static", 200, "static-route"},         // 静的ルートが優先
-		{"/dynamic", 200, "param-dynamic"},       // パラメータルート
-		{"/api/users", 200, "api-users-static"},  // より具体的な静的ルート
-		{"/api/posts", 200, "api-resource-posts"}, // パラメータルート
-		{"/files/test.txt", 200, "file-test.txt"}, // パラメータルートが優先
-		{"/files/deep/nested/path", 200, "files-wildcard"}, // ワイルドカード
+		{"/static", 200, "static-route"},         // Static route takes priority
+		{"/dynamic", 200, "param-dynamic"},       // Parameter route
+		{"/api/users", 200, "api-users-static"},  // More specific static route
+		{"/api/posts", 200, "api-resource-posts"}, // Parameter route
+		{"/files/test.txt", 200, "file-test.txt"}, // Parameter route takes priority
+		{"/files/deep/nested/path", 200, "files-wildcard"}, // Wildcard
 	}); err != nil {
 		t.Fatal(err)
 	}
 }
 
-// パフォーマンステスト：大量ルートでの応答性
+// Performance test: responsiveness with many routes
 func TestPerformanceManyRoutesResponse(t *testing.T) {
 	r := NewRouter()
 
-	// 1000個の静的ルートを追加
+	// Add 1000 static routes
 	for i := 0; i < 1000; i++ {
 		path := "/perf/" + string(rune('a'+(i%26))) + "/" + string(rune('0'+(i%10)))
 		expectedResponse := "perf-" + string(rune('a'+(i%26))) + "-" + string(rune('0'+(i%10)))
@@ -273,7 +273,7 @@ func TestPerformanceManyRoutesResponse(t *testing.T) {
 		}(expectedResponse))
 	}
 	
-	// 100個のパラメータルートを追加
+	// Add 100 parameter routes
 	for i := 0; i < 100; i++ {
 		path := "/param/" + string(rune('a'+(i%26))) + "/:id"
 		prefix := "param-" + string(rune('a'+(i%26)))
@@ -285,7 +285,7 @@ func TestPerformanceManyRoutesResponse(t *testing.T) {
 		}(prefix))
 	}
 
-	// いくつかのルートをテスト
+	// Test some routes
 	if err := Verify(r, []*Want{
 		{"/perf/a/0", 200, "perf-a-0"},
 		{"/perf/z/9", 200, "perf-z-9"},
