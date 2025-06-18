@@ -663,16 +663,6 @@ func main() {
 }
 ```
 
-## Benchmarks
-
-Performance comparison using the GitHub API (203 routes):
-
-```
-BenchmarkBon-8        10000    105265 ns/op    42753 B/op    167 allocs/op
-```
-
-See [go-http-routing-benchmark](https://github.com/nissy/go-http-routing-benchmark) for detailed comparisons.
-
 ## API Documentation
 
 For detailed API documentation, see [pkg.go.dev/github.com/nissy/bon](https://pkg.go.dev/github.com/nissy/bon).
