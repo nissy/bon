@@ -686,8 +686,11 @@ func (m *Mux) serveHTTPDynamic(w http.ResponseWriter, r *http.Request) {
 	
 	if e != nil {
 		if ctx != nil {
+			// We need to use WithContext for compatibility with middleware
+			// The sync.Map approach breaks when middleware modifies the request
 			r = ctx.WithContext(r)
 			e.fullChain.ServeHTTP(w, r)
+			
 			// Clean up context after use
 			m.pool.Put(ctx.reset())
 		} else {

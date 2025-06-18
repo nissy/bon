@@ -117,17 +117,19 @@ func BenchmarkRouteLookup(b *testing.B) {
 			}
 			
 			req := httptest.NewRequest(http.MethodGet, tt.requestPath, nil)
+			w := &nullResponseWriter{}
 			
 			b.ResetTimer()
 			b.ReportAllocs()
 			
 			for i := 0; i < b.N; i++ {
-				rec := httptest.NewRecorder()
-				m.ServeHTTP(rec, req)
+				m.ServeHTTP(w, req)
 			}
 		})
 	}
 }
+
+// Using nullResponseWriter from bench_test.go
 
 func BenchmarkMiddlewareChain(b *testing.B) {
 	tests := []struct {
@@ -185,13 +187,13 @@ func BenchmarkMiddlewareChain(b *testing.B) {
 			}
 			
 			req := httptest.NewRequest(http.MethodGet, "/route0", nil)
+			w := &nullResponseWriter{}
 			
 			b.ResetTimer()
 			b.ReportAllocs()
 			
 			for i := 0; i < b.N; i++ {
-				rec := httptest.NewRecorder()
-				m.ServeHTTP(rec, req)
+				m.ServeHTTP(w, req)
 			}
 		})
 	}
@@ -238,12 +240,19 @@ func BenchmarkComplexRouting(b *testing.B) {
 		"/api/v25/users/123/posts/456", // Nested param route
 	}
 	
+	// Pre-create requests
+	reqs := make([]*http.Request, len(requests))
+	for i, path := range requests {
+		reqs[i] = httptest.NewRequest(http.MethodGet, path, nil)
+	}
+	
+	w := &nullResponseWriter{}
+	
 	b.ResetTimer()
 	b.ReportAllocs()
 	
 	for i := 0; i < b.N; i++ {
-		req := httptest.NewRequest(http.MethodGet, requests[i%len(requests)], nil)
-		rec := httptest.NewRecorder()
-		m.ServeHTTP(rec, req)
+		req := reqs[i%len(reqs)]
+		m.ServeHTTP(w, req)
 	}
 }

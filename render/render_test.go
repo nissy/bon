@@ -256,22 +256,55 @@ func TestDeprecatedFunctions(t *testing.T) {
 	})
 }
 
+// nullResponseWriter for benchmarks to avoid httptest.NewRecorder overhead
+type nullResponseWriter struct {
+	headers http.Header
+	body    []byte
+}
+
+func (w *nullResponseWriter) Header() http.Header {
+	if w.headers == nil {
+		w.headers = make(http.Header)
+	}
+	return w.headers
+}
+
+func (w *nullResponseWriter) Write(b []byte) (int, error) {
+	w.body = append(w.body, b...)
+	return len(b), nil
+}
+
+func (w *nullResponseWriter) WriteHeader(int) {}
+
+func (w *nullResponseWriter) Reset() {
+	w.body = w.body[:0]
+	for k := range w.headers {
+		delete(w.headers, k)
+	}
+}
+
 func BenchmarkJSON(b *testing.B) {
 	data := testStruct{Name: "benchmark", Value: 999}
+	w := &nullResponseWriter{}
 	
 	b.ResetTimer()
+	b.ReportAllocs()
+	
 	for i := 0; i < b.N; i++ {
-		w := httptest.NewRecorder()
+		w.Reset()
 		JSON(w, http.StatusOK, data)
 	}
 }
 
 func BenchmarkXML(b *testing.B) {
 	data := testStruct{Name: "benchmark", Value: 999}
+	w := &nullResponseWriter{}
 	
 	b.ResetTimer()
+	b.ReportAllocs()
+	
 	for i := 0; i < b.N; i++ {
-		w := httptest.NewRecorder()
+		w.Reset()
 		XML(w, http.StatusOK, data)
 	}
 }

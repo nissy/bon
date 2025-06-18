@@ -21,6 +21,15 @@ func (w *nullResponseWriter) Header() http.Header {
 func (w *nullResponseWriter) Write([]byte) (int, error) { return 0, nil }
 func (w *nullResponseWriter) WriteHeader(int)           {}
 
+// minimalNullWriter is a truly zero-allocation ResponseWriter
+type minimalNullWriter struct{}
+
+var emptyHeader = make(http.Header)
+
+func (minimalNullWriter) Header() http.Header        { return emptyHeader }
+func (minimalNullWriter) Write([]byte) (int, error) { return 0, nil }
+func (minimalNullWriter) WriteHeader(int)           {}
+
 func BenchmarkMuxStaticRoute(b *testing.B) {
 	r := NewRouter()
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
