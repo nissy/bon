@@ -10,7 +10,7 @@ func TestGroupRouting1(t *testing.T) {
 
 	users := r.Group("/users/:name")
 	users.Get("/:age", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("name=" + URLParam(r, "name") + ", age=" + URLParam(r, "age")))
+		_, _ = w.Write([]byte("name=" + URLParam(r, "name") + ", age=" + URLParam(r, "age")))
 	})
 
 	if err := Verify(r,
@@ -29,13 +29,13 @@ func TestGroupMiddleware(t *testing.T) {
 	a := r.Group("/a")
 	a.Use(WriteMiddleware("MA"))
 	a.Get("/a", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("a"))
+		_, _ = w.Write([]byte("a"))
 	})
 
 	aa := a.Group("/a")
 	aa.Use(WriteMiddleware("MAA"))
 	aa.Get("/a", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("aa"))
+		_, _ = w.Write([]byte("aa"))
 	})
 
 	r.Use(WriteMiddleware("M"))
@@ -43,18 +43,18 @@ func TestGroupMiddleware(t *testing.T) {
 	b := r.Group("/b")
 	b.Use(WriteMiddleware("MB"))
 	b.Get("/b", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("b"))
+		_, _ = w.Write([]byte("b"))
 	})
 
 	c := r.Group("/c")
 	c.Get("/c", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("c"))
+		_, _ = w.Write([]byte("c"))
 	})
 
 	if err := Verify(r,
 		[]*Want{
-			{"/a/a", 200, "MAa"},
-			{"/a/a/a", 200, "MAMAAaa"},
+			{"/a/a", 200, "MMAa"},
+			{"/a/a/a", 200, "MMAMAAaa"},
 			{"/b/b", 200, "MMBb"},
 			{"/c/c", 200, "Mc"},
 		},

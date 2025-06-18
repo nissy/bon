@@ -34,7 +34,17 @@ func CORS(cfg AccessControlConfig) func(next http.Handler) http.Handler {
 				w.Header().Set("Access-Control-Max-Age", strconv.Itoa(cfg.MaxAge))
 			}
 
-			w.Header().Set("Access-Control-Allow-Credentials", strconv.FormatBool(cfg.AllowCredentials))
+			// Set Access-Control-Allow-Credentials only when true
+			if cfg.AllowCredentials {
+				w.Header().Set("Access-Control-Allow-Credentials", "true")
+			}
+			
+			// Return preflight response for OPTIONS requests
+			if r.Method == "OPTIONS" {
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
+			
 			next.ServeHTTP(w, r)
 		}
 

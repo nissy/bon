@@ -48,7 +48,7 @@ func Verify(h http.Handler, ws []*Want) error {
 func WriteMiddleware(v string) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		fn := func(w http.ResponseWriter, r *http.Request) {
-			w.Write([]byte(v))
+			_, _ = w.Write([]byte(v))
 			next.ServeHTTP(w, r)
 		}
 
@@ -59,7 +59,7 @@ func WriteMiddleware(v string) func(next http.Handler) http.Handler {
 func TestMuxRouting1(t *testing.T) {
 	r := NewRouter()
 	r.Get("/users/:name", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(URLParam(r, "name")))
+		_, _ = w.Write([]byte(URLParam(r, "name")))
 	})
 
 	if err := Verify(r,
@@ -76,10 +76,10 @@ func TestMuxRouting1(t *testing.T) {
 func TestMuxRouting2(t *testing.T) {
 	r := NewRouter()
 	r.Get("/users/:name", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(URLParam(r, "name")))
+		_, _ = w.Write([]byte(URLParam(r, "name")))
 	})
 	r.Get("/users/:name/ccc", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(URLParam(r, "name") + "ccc"))
+		_, _ = w.Write([]byte(URLParam(r, "name") + "ccc"))
 	})
 
 	if err := Verify(r,
@@ -97,16 +97,16 @@ func TestMuxRouting2(t *testing.T) {
 func TestMuxRouting3(t *testing.T) {
 	r := NewRouter()
 	r.Get("/users/:name", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(URLParam(r, "name")))
+		_, _ = w.Write([]byte(URLParam(r, "name")))
 	})
 	r.Get("/users/:name/ccc", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(URLParam(r, "name") + "ccc"))
+		_, _ = w.Write([]byte(URLParam(r, "name") + "ccc"))
 	})
 	r.Get("/*", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("*"))
+		_, _ = w.Write([]byte("*"))
 	})
 	r.Get("/a/*", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("*2"))
+		_, _ = w.Write([]byte("*2"))
 	})
 
 	if err := Verify(r,
@@ -126,13 +126,13 @@ func TestMuxRouting3(t *testing.T) {
 func TestMuxRouting4(t *testing.T) {
 	r := NewRouter()
 	r.Get("/users/aaa", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("static-aaa"))
+		_, _ = w.Write([]byte("static-aaa"))
 	})
 	r.Get("/users/:name", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("param-" + URLParam(r, "name")))
+		_, _ = w.Write([]byte("param-" + URLParam(r, "name")))
 	})
 	r.Get("/users/ccc", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("static-ccc"))
+		_, _ = w.Write([]byte("static-ccc"))
 	})
 
 	if err := Verify(r,
@@ -150,13 +150,13 @@ func TestMuxRouting4(t *testing.T) {
 func TestMuxRouting5(t *testing.T) {
 	r := NewRouter()
 	r.Get("/aaa", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("static-aaa"))
+		_, _ = w.Write([]byte("static-aaa"))
 	})
 	r.Get("/:name", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("param-" + URLParam(r, "name")))
+		_, _ = w.Write([]byte("param-" + URLParam(r, "name")))
 	})
 	r.Get("/aaa/*", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("*"))
+		_, _ = w.Write([]byte("*"))
 	})
 
 	if err := Verify(r,
@@ -173,16 +173,16 @@ func TestMuxRouting5(t *testing.T) {
 func TestMuxRouting6(t *testing.T) {
 	r := NewRouter()
 	r.Get("/aaa", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("aaa"))
+		_, _ = w.Write([]byte("aaa"))
 	})
 	r.Get("/:name/bbb", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(URLParam(r, "name")))
+		_, _ = w.Write([]byte(URLParam(r, "name")))
 	})
 	r.Get("/aaa/*", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("*"))
+		_, _ = w.Write([]byte("*"))
 	})
 	r.Get("/aaa/*/ddd", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("*2"))
+		_, _ = w.Write([]byte("*2"))
 	})
 
 	if err := Verify(r,
@@ -202,22 +202,22 @@ func TestMuxRouting6(t *testing.T) {
 func TestMuxRouting7(t *testing.T) {
 	r := NewRouter()
 	r.Get("/a/b/c", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("/a/b/c"))
+		_, _ = w.Write([]byte("/a/b/c"))
 	})
 	r.Get("/a/b/:c", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(fmt.Sprintf("/a/b/:c %s", URLParam(r, "c"))))
+		_, _ = w.Write([]byte(fmt.Sprintf("/a/b/:c %s", URLParam(r, "c"))))
 	})
 	r.Get("/a/:b/c", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(fmt.Sprintf("/a/:b/c %s", URLParam(r, "b"))))
+		_, _ = w.Write([]byte(fmt.Sprintf("/a/:b/c %s", URLParam(r, "b"))))
 	})
 	r.Get("/a/:b/:c", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(fmt.Sprintf("/a/:b/:c %s %s", URLParam(r, "b"), URLParam(r, "c"))))
+		_, _ = w.Write([]byte(fmt.Sprintf("/a/:b/:c %s %s", URLParam(r, "b"), URLParam(r, "c"))))
 	})
 	r.Get("/:a/b/c", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(fmt.Sprintf("/:a/b/c %s", URLParam(r, "a"))))
+		_, _ = w.Write([]byte(fmt.Sprintf("/:a/b/c %s", URLParam(r, "a"))))
 	})
 	r.Get("/:a/:b/:c", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(fmt.Sprintf("/:a/:b/:c %s %s %s", URLParam(r, "a"), URLParam(r, "b"), URLParam(r, "c"))))
+		_, _ = w.Write([]byte(fmt.Sprintf("/:a/:b/:c %s %s %s", URLParam(r, "a"), URLParam(r, "b"), URLParam(r, "c"))))
 	})
 
 	if err := Verify(r,
@@ -237,10 +237,10 @@ func TestMuxRouting7(t *testing.T) {
 func TestMuxRouting8(t *testing.T) {
 	r := NewRouter()
 	r.Get("/a/:b/c", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(fmt.Sprintf("/a/:b/c %s", URLParam(r, "b"))))
+		_, _ = w.Write([]byte(fmt.Sprintf("/a/:b/c %s", URLParam(r, "b"))))
 	})
 	r.Get("/a/:bb/cc", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(fmt.Sprintf("/a/:bb/cc %s", URLParam(r, "bb"))))
+		_, _ = w.Write([]byte(fmt.Sprintf("/a/:bb/cc %s", URLParam(r, "bb"))))
 	})
 
 	if err := Verify(r,
@@ -256,16 +256,16 @@ func TestMuxRouting8(t *testing.T) {
 func TestMuxRoutingOverride(t *testing.T) {
 	r := NewRouter()
 	r.Get("/aaa", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("aaa"))
+		_, _ = w.Write([]byte("aaa"))
 	})
 	r.Get("/aaa", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("aaa-override"))
+		_, _ = w.Write([]byte("aaa-override"))
 	})
 	r.Get("/aaa/:name", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("aaa-" + URLParam(r, "name")))
+		_, _ = w.Write([]byte("aaa-" + URLParam(r, "name")))
 	})
 	r.Get("/aaa/:name", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("aaa-override-" + URLParam(r, "name")))
+		_, _ = w.Write([]byte("aaa-override-" + URLParam(r, "name")))
 	})
 
 	if err := Verify(r,
@@ -282,7 +282,7 @@ func TestMuxMiddleware(t *testing.T) {
 	r := NewRouter()
 	r.Use(WriteMiddleware("M"))
 	r.Get("/users/:name", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(URLParam(r, "name")))
+		_, _ = w.Write([]byte(URLParam(r, "name")))
 	},
 		WriteMiddleware("M"),
 	)
@@ -291,6 +291,312 @@ func TestMuxMiddleware(t *testing.T) {
 		[]*Want{
 			{"/users/a", 200, "MMa"},
 			{"/users/b", 200, "MMb"},
+		},
+	); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// HTTP method tests
+func TestMuxHTTPMethods(t *testing.T) {
+	r := NewRouter()
+
+	// Set handlers for each HTTP method
+	r.Get("/resource", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("GET"))
+	})
+	r.Post("/resource", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("POST"))
+	})
+	r.Put("/resource", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("PUT"))
+	})
+	r.Delete("/resource", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("DELETE"))
+	})
+	r.Patch("/resource", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("PATCH"))
+	})
+	r.Head("/resource", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	r.Options("/resource", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("OPTIONS"))
+	})
+
+	// Access the same path with each method and ensure the correct handler is called
+	tests := []struct {
+		method string
+		want   string
+	}{
+		{"GET", "GET"},
+		{"POST", "POST"},
+		{"PUT", "PUT"},
+		{"DELETE", "DELETE"},
+		{"PATCH", "PATCH"},
+		{"OPTIONS", "OPTIONS"},
+	}
+
+	for _, tt := range tests {
+		req := httptest.NewRequest(tt.method, "/resource", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("%s /resource: got status %d, want %d", tt.method, w.Code, http.StatusOK)
+		}
+
+		if tt.method != "HEAD" && w.Body.String() != tt.want {
+			t.Errorf("%s /resource: got body %q, want %q", tt.method, w.Body.String(), tt.want)
+		}
+	}
+
+	// HEAD method test
+	req := httptest.NewRequest("HEAD", "/resource", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("HEAD /resource: got status %d, want %d", w.Code, http.StatusOK)
+	}
+
+	if w.Body.Len() != 0 {
+		t.Errorf("HEAD /resource: got body length %d, want 0", w.Body.Len())
+	}
+}
+
+// Complex middleware chain tests
+func TestMuxComplexMiddleware(t *testing.T) {
+	r := NewRouter()
+
+	// Apply multiple middleware
+	r.Use(
+		WriteMiddleware("G1"),
+		WriteMiddleware("G2"),
+	)
+
+	// Route-level handler with middleware
+	r.Get("/test1", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("H1"))
+	},
+		WriteMiddleware("R1"),
+		WriteMiddleware("R2"),
+	)
+
+	// Group middleware
+	g := r.Group("/group")
+	g.Use(
+		WriteMiddleware("GR1"),
+		WriteMiddleware("GR2"),
+	)
+	g.Get("/test2", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("H2"))
+	})
+
+	// Nested group
+	sg := g.Group("/sub")
+	sg.Use(WriteMiddleware("SG1"))
+	sg.Get("/test3", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("H3"))
+	})
+
+	if err := Verify(r,
+		[]*Want{
+			{"/test1", 200, "G1G2R1R2H1"},
+			{"/group/test2", 200, "G1G2GR1GR2H2"},
+			{"/group/sub/test3", 200, "G1G2GR1GR2SG1H3"},
+		},
+	); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Error case tests
+func TestMuxErrorCases(t *testing.T) {
+	r := NewRouter()
+
+	// Set up basic routes
+	r.Get("/users/:id", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("user-" + URLParam(r, "id")))
+	})
+
+	// 404 error tests
+	tests := []struct {
+		path       string
+		wantStatus int
+	}{
+		{"/", http.StatusNotFound},
+		{"/nonexistent", http.StatusNotFound},
+		{"/users", http.StatusNotFound},
+		{"/users/123/extra", http.StatusNotFound},
+		{"/users/123/extra/path", http.StatusNotFound},
+	}
+
+	for _, tt := range tests {
+		req := httptest.NewRequest("GET", tt.path, nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		if w.Code != tt.wantStatus {
+			t.Errorf("GET %s: got status %d, want %d", tt.path, w.Code, tt.wantStatus)
+		}
+	}
+
+	// Access with wrong method
+	req := httptest.NewRequest("POST", "/users/123", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Errorf("POST /users/123: got status %d, want %d", w.Code, http.StatusNotFound)
+	}
+}
+
+// Special character handling in parameters tests
+func TestMuxSpecialCharacters(t *testing.T) {
+	r := NewRouter()
+
+	r.Get("/users/:name", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(URLParam(r, "name")))
+	})
+
+	r.Get("/files/*", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("file"))
+	})
+
+	// Test parameters with special characters
+	tests := []struct {
+		path     string
+		wantBody string
+	}{
+		{"/users/test@example.com", "test@example.com"},
+		{"/users/user-123", "user-123"},
+		{"/users/user_456", "user_456"},
+		{"/users/user.name", "user.name"},
+		{"/users/日本語", "日本語"},
+		{"/users/user%20space", "user space"},
+		{"/files/path/to/file.txt", "file"},
+		{"/files/path%2Fwith%2Fencoded", "file"},
+	}
+
+	for _, tt := range tests {
+		req := httptest.NewRequest("GET", tt.path, nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("GET %s: got status %d, want %d", tt.path, w.Code, http.StatusOK)
+			continue
+		}
+
+		if w.Body.String() != tt.wantBody {
+			t.Errorf("GET %s: got body %q, want %q", tt.path, w.Body.String(), tt.wantBody)
+		}
+	}
+}
+
+// Routing boundary value tests
+func TestMuxBoundaryRouting(t *testing.T) {
+	r := NewRouter()
+
+	// Empty path test
+	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("root"))
+	})
+
+	// Long path test
+	longPath := "/a/b/c/d/e/f/g/h/i/j/k/l/m/n/o/p"
+	r.Get(longPath, func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("long"))
+	})
+
+	// Multiple parameters
+	r.Get("/:a/:b/:c/:d/:e", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(URLParam(r, "a") + "-" + URLParam(r, "e")))
+	})
+
+	// Trailing slash handling
+	r.Get("/trailing", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("no-slash"))
+	})
+
+	r.Get("/trailing/", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("with-slash"))
+	})
+
+	if err := Verify(r,
+		[]*Want{
+			{"/", 200, "root"},
+			{longPath, 200, "long"},
+			{"/1/2/3/4/5", 200, "1-5"},
+			{"/trailing", 200, "no-slash"},
+			{"/trailing/", 200, "with-slash"},
+		},
+	); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Middleware error handling tests
+func TestMuxMiddlewareError(t *testing.T) {
+	r := NewRouter()
+
+	// Middleware that panics
+	panicMiddleware := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			panic("middleware panic")
+		})
+	}
+
+	// Middleware that returns error response
+	errorMiddleware := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = w.Write([]byte("error"))
+			// Don't call next
+		})
+	}
+
+	// Normal route
+	r.Get("/normal", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("ok"))
+	})
+
+	// Route with error middleware applied
+	r.Get("/error", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("should not reach"))
+	}, errorMiddleware)
+
+	// Panic middleware test is omitted here as it requires separate recover handling
+	_ = panicMiddleware
+
+	if err := Verify(r,
+		[]*Want{
+			{"/normal", 200, "ok"},
+			{"/error", 500, "error"},
+		},
+	); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Test different parameter names on the same path
+func TestMuxDifferentParamNames(t *testing.T) {
+	r := NewRouter()
+
+	// Routes with parameters at the same position but with different parameter names
+	r.Get("/a/:foo/c", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("foo=" + URLParam(r, "foo")))
+	})
+
+	r.Get("/a/:bar/d", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("bar=" + URLParam(r, "bar")))
+	})
+
+	if err := Verify(r,
+		[]*Want{
+			{"/a/test/c", 200, "foo=test"},
+			{"/a/test/d", 200, "bar=test"},
 		},
 	); err != nil {
 		t.Fatal(err)
