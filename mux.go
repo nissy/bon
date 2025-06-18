@@ -522,7 +522,8 @@ func (m *Mux) lookup(r *http.Request) (*endpoint, *Context) {
 	}
 
 	// Root path check
-	if indices, ok := data.prefixMap[method+"/"]; ok {
+	rootKey := method + "/"
+	if indices, ok := data.prefixMap[rootKey]; ok {
 		processIndices(indices)
 	}
 
@@ -672,11 +673,11 @@ func containsWildcard(pattern string) bool {
 // Pattern matching (optimized version)
 func matchPatternOptimized(pattern, path string, params []string) (bool, []string) {
 	// Fast path: exact match
-	plen, pathlen := len(pattern), len(path)
-	if plen == pathlen && pattern == path {
+	if pattern == path {
 		return true, params[:0]
 	}
 
+	plen, pathlen := len(pattern), len(path)
 	// Quick rejection for obvious mismatches
 	if plen == 0 || pathlen == 0 {
 		return false, nil
@@ -685,52 +686,56 @@ func matchPatternOptimized(pattern, path string, params []string) (bool, []strin
 	params = params[:0]
 	pi, pj := 0, 0
 
-	// Skip if both start with "/"
-	if plen > 0 && pathlen > 0 && pattern[0] == '/' && path[0] == '/' {
-		pi++
-		pj++
-	}
-
 	for pi < plen && pj < pathlen {
-		if pattern[pi] == '*' {
-			// Wildcard
-			if pi == plen-1 {
-				return true, params
+		switch pattern[pi] {
+		case '*':
+			// Check if there's anything after the wildcard in pattern
+			if pi+1 < plen {
+				// Pattern continues after wildcard (e.g., "*/something")
+				remainingPattern := pattern[pi+1:]
+				
+				// Special case: if remaining pattern is just "/" we need exact match
+				if remainingPattern == "/" {
+					// Must end with exactly one slash
+					for pj < pathlen && path[pj] != '/' {
+						pj++
+					}
+					if pj < pathlen && path[pj] == '/' && pj+1 == pathlen {
+						return true, params
+					}
+					return false, nil
+				}
+				
+				// General case: wildcard must match exactly one segment
+				// Find the next slash in the path
+				for pj < pathlen && path[pj] != '/' {
+					pj++
+				}
+				
+				// Now check if the remaining pattern matches the rest of the path
+				if pj < pathlen && path[pj:] == remainingPattern {
+					return true, params
+				}
+				return false, nil
 			}
-			// Skip until next slash
-			for pj < pathlen && path[pj] != '/' {
-				pj++
-			}
-			pi++
-		} else if pattern[pi] == ':' {
-			// Parameter start
+			// Wildcard at end matches rest of path
+			return true, params
+		case ':':
+			// Parameter extraction
+			pi++ // Skip ':'
 			start := pj
-			// Skip parameter name
+			// Skip parameter name in pattern
 			for pi < plen && pattern[pi] != '/' {
 				pi++
 			}
-			// Get value
+			// Extract value from path
 			for pj < pathlen && path[pj] != '/' {
 				pj++
 			}
 			params = append(params, path[start:pj])
-		} else {
-			// Compare static part
-			start := pi
-			for pi < plen && pattern[pi] != '/' && pattern[pi] != ':' && pattern[pi] != '*' {
-				pi++
-			}
-			segLen := pi - start
-
-			if pj+segLen > pathlen || pattern[start:pi] != path[pj:pj+segLen] {
-				return false, nil
-			}
-			pj += segLen
-		}
-
-		// Handle slash
-		if pi < plen && pattern[pi] == '/' {
-			if pj >= pathlen || path[pj] != '/' {
+		default:
+			// Static segment comparison
+			if pattern[pi] != path[pj] {
 				return false, nil
 			}
 			pi++
@@ -738,10 +743,12 @@ func matchPatternOptimized(pattern, path string, params []string) (bool, []strin
 		}
 	}
 
-	// Check end
+	// Check if we consumed both strings completely
 	if pi == plen && pj == pathlen {
 		return true, params
 	}
+	
+	// Handle trailing wildcard
 	if pi < plen && pattern[pi] == '*' && pi == plen-1 {
 		return true, params
 	}
@@ -755,13 +762,22 @@ func calculateScore(ep *endpoint, paramCount int) int {
 		return 1000
 	}
 
+	// Calculate static length
 	score := 0
-	pattern := ep.pattern
-
-	// Count static characters
-	for i := 0; i < len(pattern); i++ {
-		if pattern[i] != ':' && pattern[i] != '*' && pattern[i] != '/' {
-			score++
+	inParam := false
+	for i := 0; i < len(ep.pattern); i++ {
+		switch ep.pattern[i] {
+		case ':':
+			inParam = true
+		case '*':
+			inParam = false
+		case '/':
+			inParam = false
+			score++ // Count slashes as static content
+		default:
+			if !inParam {
+				score++
+			}
 		}
 	}
 
