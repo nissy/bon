@@ -93,7 +93,7 @@ func TestMuxWildcardCapture(t *testing.T) {
 }
 
 // Test complex parameter patterns
-func TestMuxComplexParameterPatterns(t *testing.T) {
+func TestMuxAdvancedParameterPatterns(t *testing.T) {
 	tests := []struct {
 		name        string
 		pattern     string
