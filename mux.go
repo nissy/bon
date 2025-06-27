@@ -28,14 +28,14 @@ const (
 type (
 	// Mux is the main HTTP router structure
 	Mux struct {
-		doubleArray       *doubleArrayTrie // Double array trie for routing
-		endpoints         []*endpoint      // Slice of registered endpoints
-		middlewares       []Middleware     // Global middlewares
-		pool              sync.Pool        // Pool for Context reuse
-		paramBufferPool   sync.Pool        // Pool for parameter buffers
-		maxParam          int              // Maximum parameter count (dynamically updated)
-		NotFound          http.HandlerFunc // 404 handler
-		notFoundChain     http.Handler     // Pre-built 404 handler chain
+		doubleArray     *doubleArrayTrie // Double array trie for routing
+		endpoints       []*endpoint      // Slice of registered endpoints
+		middlewares     []Middleware     // Global middlewares
+		contextPool     sync.Pool        // Pool for Context reuse
+		paramBufferPool sync.Pool        // Pool for parameter buffers
+		maxParam        int              // Maximum parameter count (dynamically updated)
+		NotFound        http.HandlerFunc // 404 handler
+		notFoundChain   http.Handler     // Pre-built 404 handler chain
 	}
 
 	nodeKind uint8
@@ -55,8 +55,8 @@ type (
 		staticMap map[string]int   // Fast lookup map for static routes
 		prefixMap map[string][]int // Prefix map for dynamic routes
 		// New: method-specific maps to avoid string concatenation
-		staticByMethod map[string]map[string]int    // method -> path -> endpoint index
-		prefixByMethod map[string]map[string][]int  // method -> prefix -> []endpoint index
+		staticByMethod map[string]map[string]int   // method -> path -> endpoint index
+		prefixByMethod map[string]map[string][]int // method -> prefix -> []endpoint index
 	}
 
 	// endpoint contains route endpoint information
@@ -84,7 +84,7 @@ func newMux() *Mux {
 	// Initialize notFoundChain with middleware
 	m.notFoundChain = buildMiddlewareChain(m.NotFound, m.middlewares)
 
-	m.pool = sync.Pool{
+	m.contextPool = sync.Pool{
 		New: func() interface{} {
 			// Use reasonable initial capacity
 			capacity := m.maxParam
@@ -101,14 +101,13 @@ func newMux() *Mux {
 		},
 	}
 
-	// Initialize parameter buffer pool
+	// Initialize parameter buffer contextPool
 	m.paramBufferPool = sync.Pool{
 		New: func() interface{} {
 			buf := make([]string, 0, initialParamBufferSize)
 			return &buf
 		},
 	}
-
 
 	return m
 }
@@ -362,7 +361,7 @@ func (dat *doubleArrayTrie) insertLocked(key string, index int) {
 	// Register static routes in fast lookup map
 	if isStaticPattern(pattern) {
 		newData.staticMap[key] = index
-		
+
 		// Also register in method-specific map to avoid concatenation
 		method := key[:methodEnd]
 		if newData.staticByMethod[method] == nil {
@@ -384,7 +383,7 @@ func (dat *doubleArrayTrie) insertLocked(key string, index int) {
 		prefix := getStaticPrefix(pattern)
 		prefixKey := key[:methodEnd] + prefix
 		newData.prefixMap[prefixKey] = append(newData.prefixMap[prefixKey], index)
-		
+
 		// Also register in method-specific prefix map
 		method := key[:methodEnd]
 		if newData.prefixByMethod[method] == nil {
@@ -514,7 +513,7 @@ func (m *Mux) lookup(r *http.Request) (*endpoint, *Context) {
 	// Track current context for cleanup
 	var currentCtx *Context
 
-	// Get parameter buffer from pool
+	// Get parameter buffer from contextPool
 	paramsBufPtr := m.paramBufferPool.Get().(*[]string)
 	paramsBuf := (*paramsBufPtr)[:0]
 
@@ -527,7 +526,7 @@ func (m *Mux) lookup(r *http.Request) (*endpoint, *Context) {
 			// Ensure buffer has enough capacity for this route's parameters
 			needCap := len(ep.paramKeys)
 			if needCap > cap(paramsBuf) {
-				// Return current buffer to pool and get a larger one
+				// Return current buffer to contextPool and get a larger one
 				*paramsBufPtr = paramsBuf[:0]
 				m.paramBufferPool.Put(paramsBufPtr)
 				// Create a new larger buffer
@@ -549,7 +548,7 @@ func (m *Mux) lookup(r *http.Request) (*endpoint, *Context) {
 					if paramCount > 0 {
 						// Get new context only when needed
 						if currentCtx == nil {
-							currentCtx = m.pool.Get().(*Context)
+							currentCtx = m.contextPool.Get().(*Context)
 						}
 
 						// Setup parameters with capacity limit
@@ -560,8 +559,8 @@ func (m *Mux) lookup(r *http.Request) (*endpoint, *Context) {
 							bestMatch = nil
 							bestScore = 0
 							bestCtx = nil
-							// Return context to pool
-							m.pool.Put(currentCtx.reset())
+							// Return context to contextPool
+							m.contextPool.Put(currentCtx.reset())
 							currentCtx = nil
 							continue
 						} else {
@@ -580,7 +579,7 @@ func (m *Mux) lookup(r *http.Request) (*endpoint, *Context) {
 		if indices, ok := methodPrefixes["/"]; ok {
 			processIndices(indices)
 		}
-		
+
 		// Prefix matching without allocation
 		for i := 1; i < len(path); i++ {
 			if path[i] == '/' {
@@ -601,16 +600,16 @@ func (m *Mux) lookup(r *http.Request) (*endpoint, *Context) {
 	m.paramBufferPool.Put(paramsBufPtr)
 
 	if bestMatch != nil {
-		// Return unused context to pool
+		// Return unused context to contextPool
 		if currentCtx != nil && currentCtx != bestCtx {
-			m.pool.Put(currentCtx.reset())
+			m.contextPool.Put(currentCtx.reset())
 		}
 		return bestMatch, bestCtx
 	}
 
-	// Return context to pool if no match
+	// Return context to contextPool if no match
 	if currentCtx != nil {
-		m.pool.Put(currentCtx.reset())
+		m.contextPool.Put(currentCtx.reset())
 	}
 
 	return nil, nil
@@ -628,7 +627,7 @@ func (m *Mux) setupContextParams(ctx *Context, values []string, keys []string) b
 	// Clear and set new values
 	ctx.params.keys = ctx.params.keys[:0]
 	ctx.params.values = ctx.params.values[:0]
-	
+
 	// Append values efficiently
 	for i := 0; i < needCap && i < len(keys); i++ {
 		ctx.params.keys = append(ctx.params.keys, keys[i])
@@ -649,11 +648,10 @@ func (m *Mux) rebuildMiddlewareChains() {
 	m.notFoundChain = buildMiddlewareChain(m.NotFound, m.middlewares)
 }
 
-
 func (m *Mux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Fast path: check static routes first without allocation
 	data := m.doubleArray.data.Load()
-	
+
 	// Direct lookup without string concatenation
 	if methodMap, exists := data.staticByMethod[r.Method]; exists {
 		if idx, exists := methodMap[r.URL.Path]; exists {
@@ -675,16 +673,16 @@ func (m *Mux) serveStatic(w http.ResponseWriter, r *http.Request, idx int) {
 
 func (m *Mux) serveHTTPDynamic(w http.ResponseWriter, r *http.Request) {
 	e, ctx := m.lookup(r)
-	
+
 	if e != nil {
 		if ctx != nil {
 			// We need to use WithContext for compatibility with middleware
 			// The sync.Map approach breaks when middleware modifies the request
 			r = ctx.WithContext(r)
 			e.fullChain.ServeHTTP(w, r)
-			
+
 			// Clean up context after use
-			m.pool.Put(ctx.reset())
+			m.contextPool.Put(ctx.reset())
 		} else {
 			e.fullChain.ServeHTTP(w, r)
 		}
@@ -745,7 +743,7 @@ func matchPatternOptimizedInPlace(pattern, path string, params []string) (bool, 
 			if pi+1 < plen {
 				// Pattern continues after wildcard (e.g., "*/something")
 				remainingPattern := pattern[pi+1:]
-				
+
 				// Special case: if remaining pattern is just "/" we need exact match
 				if remainingPattern == "/" {
 					// Must end with exactly one slash
@@ -757,13 +755,13 @@ func matchPatternOptimizedInPlace(pattern, path string, params []string) (bool, 
 					}
 					return false, 0
 				}
-				
+
 				// General case: wildcard must match exactly one segment
 				// Find the next slash in the path
 				for pj < pathlen && path[pj] != '/' {
 					pj++
 				}
-				
+
 				// Now check if the remaining pattern matches the rest of the path
 				if pj < pathlen && path[pj:] == remainingPattern {
 					return true, paramCount
@@ -805,7 +803,7 @@ func matchPatternOptimizedInPlace(pattern, path string, params []string) (bool, 
 	if pi == plen && pj == pathlen {
 		return true, paramCount
 	}
-	
+
 	// Handle trailing wildcard
 	if pi < plen && pattern[pi] == '*' && pi == plen-1 {
 		return true, paramCount
@@ -813,7 +811,6 @@ func matchPatternOptimizedInPlace(pattern, path string, params []string) (bool, 
 
 	return false, 0
 }
-
 
 // Calculate score
 func calculateScore(ep *endpoint, paramCount int) int {

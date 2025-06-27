@@ -25,13 +25,13 @@ func measureAllocs(t *testing.T, name string, fn func()) {
 func BenchmarkMuxStaticRouteMinimal(b *testing.B) {
 	r := NewRouter()
 	r.Get("/api/v1/users", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
-	
+
 	req := httptest.NewRequest("GET", "/api/v1/users", nil)
 	w := nullResponseWriter{}
-	
+
 	b.ResetTimer()
 	b.ReportAllocs()
-	
+
 	for i := 0; i < b.N; i++ {
 		r.ServeHTTP(w, req)
 	}
@@ -41,12 +41,12 @@ func BenchmarkMuxStaticRouteMinimal(b *testing.B) {
 func BenchmarkMuxLookupStatic(b *testing.B) {
 	m := newMux()
 	m.Get("/api/v1/users", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
-	
+
 	req := httptest.NewRequest("GET", "/api/v1/users", nil)
-	
+
 	b.ResetTimer()
 	b.ReportAllocs()
-	
+
 	for i := 0; i < b.N; i++ {
 		m.lookup(req)
 	}
@@ -56,16 +56,16 @@ func BenchmarkMuxLookupStatic(b *testing.B) {
 func BenchmarkMuxLookupParam(b *testing.B) {
 	m := newMux()
 	m.Get("/users/:id", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
-	
+
 	req := httptest.NewRequest("GET", "/users/123", nil)
-	
+
 	b.ResetTimer()
 	b.ReportAllocs()
-	
+
 	for i := 0; i < b.N; i++ {
 		ep, ctx := m.lookup(req)
 		if ctx != nil {
-			m.pool.Put(ctx.reset())
+			m.contextPool.Put(ctx.reset())
 		}
 		_ = ep
 	}
@@ -75,10 +75,10 @@ func BenchmarkMuxLookupParam(b *testing.B) {
 func BenchmarkStringConcat(b *testing.B) {
 	method := "GET"
 	path := "/api/v1/users"
-	
+
 	b.ResetTimer()
 	b.ReportAllocs()
-	
+
 	for i := 0; i < b.N; i++ {
 		key := method + path
 		_ = key
@@ -89,10 +89,10 @@ func BenchmarkStringConcat(b *testing.B) {
 func BenchmarkStringBuilder(b *testing.B) {
 	method := "GET"
 	path := "/api/v1/users"
-	
+
 	b.ResetTimer()
 	b.ReportAllocs()
-	
+
 	for i := 0; i < b.N; i++ {
 		var builder strings.Builder
 		builder.Grow(len(method) + len(path))
@@ -187,7 +187,7 @@ func TestSpecificAllocationSources(t *testing.T) {
 		measureAllocs(t, "lookup method", func() {
 			ep, ctx := r.lookup(req)
 			if ctx != nil {
-				r.pool.Put(ctx.reset())
+				r.contextPool.Put(ctx.reset())
 			}
 			_ = ep
 		})
@@ -211,16 +211,16 @@ func TestSpecificAllocationSources(t *testing.T) {
 
 func TestAllocationBreakdown(t *testing.T) {
 	// Test individual operations that might allocate
-	
+
 	t.Run("String concatenation patterns", func(t *testing.T) {
 		method := "GET"
 		path := "/users/123"
-		
+
 		// Test different string building approaches
 		measureAllocs(t, "Direct concatenation", func() {
 			_ = method + path
 		})
-		
+
 		measureAllocs(t, "Multiple concatenations", func() {
 			prefix := method + "/"
 			_ = prefix + "users/123"
@@ -254,7 +254,7 @@ func TestAllocationBreakdown(t *testing.T) {
 
 	t.Run("Interface conversions", func(t *testing.T) {
 		var h http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})
-		
+
 		measureAllocs(t, "Interface to concrete type", func() {
 			_ = h.(http.HandlerFunc)
 		})

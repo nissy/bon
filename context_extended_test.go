@@ -62,11 +62,11 @@ func TestContextSameParameterNames(t *testing.T) {
 	r.Get("/users/:id", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("user-" + URLParam(r, "id")))
 	})
-	
+
 	r.Get("/posts/:id", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("post-" + URLParam(r, "id")))
 	})
-	
+
 	r.Get("/comments/:id", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("comment-" + URLParam(r, "id")))
 	})
@@ -109,13 +109,13 @@ func TestContextNestedParameters(t *testing.T) {
 	users.Get("/profile", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("profile-" + URLParam(r, "userId")))
 	})
-	
+
 	users.Get("/posts/:postId", func(w http.ResponseWriter, r *http.Request) {
 		userId := URLParam(r, "userId")
 		postId := URLParam(r, "postId")
 		_, _ = w.Write([]byte("user-" + userId + "-post-" + postId))
 	})
-	
+
 	// Further nested Group
 	posts := users.Group("/posts/:postId")
 	posts.Get("/comments/:commentId", func(w http.ResponseWriter, r *http.Request) {
@@ -161,7 +161,7 @@ func TestContextMultipleValues(t *testing.T) {
 		user := r.Context().Value(userKey).(string)
 		session := r.Context().Value(sessionKey).(string)
 		request := r.Context().Value(requestKey).(string)
-		
+
 		result := "id:" + id + ",user:" + user + ",session:" + session + ",request:" + request
 		_, _ = w.Write([]byte(result))
 	})
@@ -173,21 +173,21 @@ func TestContextMultipleValues(t *testing.T) {
 	}
 }
 
-// Context pool recycling test
+// Context contextPool recycling test
 func TestContextPoolRecycling(t *testing.T) {
 	r := NewRouter()
 
-	// Test pool recycling by executing routes with parameters many times
-	r.Get("/pool/:id", func(w http.ResponseWriter, r *http.Request) {
+	// Test contextPool recycling by executing routes with parameters many times
+	r.Get("/contextPool/:id", func(w http.ResponseWriter, r *http.Request) {
 		id := URLParam(r, "id")
-		_, _ = w.Write([]byte("pool-" + id))
+		_, _ = w.Write([]byte("contextPool-" + id))
 	})
-	
-	// Execute multiple times to confirm the pool works correctly
+
+	// Execute multiple times to confirm the contextPool works correctly
 	requests := []*Want{}
 	for i := 0; i < 100; i++ {
-		path := "/pool/" + string(rune('0'+(i%10)))
-		expected := "pool-" + string(rune('0'+(i%10)))
+		path := "/contextPool/" + string(rune('0'+(i%10)))
+		expected := "contextPool-" + string(rune('0'+(i%10)))
 		requests = append(requests, &Want{path, 200, expected})
 	}
 
@@ -204,19 +204,19 @@ func TestContextDifferentParameterCounts(t *testing.T) {
 	r.Get("/zero", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("zero-params"))
 	})
-	
+
 	// 1 parameter
 	r.Get("/one/:p1", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("one-" + URLParam(r, "p1")))
 	})
-	
+
 	// 2 parameters
 	r.Get("/two/:p1/:p2", func(w http.ResponseWriter, r *http.Request) {
 		p1 := URLParam(r, "p1")
 		p2 := URLParam(r, "p2")
 		_, _ = w.Write([]byte("two-" + p1 + "-" + p2))
 	})
-	
+
 	// 5 parameters
 	r.Get("/five/:p1/:p2/:p3/:p4/:p5", func(w http.ResponseWriter, r *http.Request) {
 		params := []string{
@@ -270,7 +270,7 @@ func TestContextErrorConditions(t *testing.T) {
 		param := URLParam(r, "nonexistent")
 		_, _ = w.Write([]byte("no-params-" + param))
 	})
-	
+
 	// Normal parameter route
 	r.Get("/with-params/:id", func(w http.ResponseWriter, r *http.Request) {
 		id := URLParam(r, "id")
