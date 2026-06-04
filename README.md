@@ -2,9 +2,9 @@
 
 # Bon - Fast HTTP Router for Go
 
-Bon is a high-performance HTTP router for Go that uses a double array trie data structure for efficient route matching. It focuses on speed, simplicity, and zero external dependencies.
+Bon is a high-performance HTTP router for Go that uses exact-match indexing, segment tree routing, and a Patricia-style fallback for efficient route matching. It focuses on speed, simplicity, and zero external dependencies.
 
-[![GoDoc Widget]][GoDoc] [![Go Report Card](https://goreportcard.com/badge/github.com/nissy/bon)](https://goreportcard.com/report/github.com/nissy/bon)
+[![GoDoc Widget]][GoDoc] [![Go Report Card](https://goreportcard.com/badge/github.com/nissy/bon/v2)](https://goreportcard.com/report/github.com/nissy/bon/v2)
 
 ## Table of Contents
 
@@ -29,7 +29,7 @@ Bon is a high-performance HTTP router for Go that uses a double array trie data 
 
 ## Features
 
-- **High Performance**: Double array trie-based routing for optimal performance
+- **High Performance**: Static fast path and segment tree-based dynamic routing
 - **Zero Dependencies**: Uses only Go standard library
 - **Middleware Support**: Flexible middleware at router, group, and route levels
 - **Standard HTTP Compatible**: Works with `http.Handler` interface
@@ -38,10 +38,10 @@ Bon is a high-performance HTTP router for Go that uses a double array trie data 
 - **File Server**: Built-in static file serving with security protections
 - **Context Pooling**: Efficient memory usage with sync.Pool
 - **Thread-Safe**: Lock-free reads using atomic operations
-- **Panic Recovery**: Built-in recovery middleware available
-- **WebSocket Ready**: Full support for WebSocket connections
+- **Panic Recovery**: Recovery middleware available
+- **WebSocket Ready**: Works with standard WebSocket upgrade flows
 - **SSE Support**: Server-Sent Events with proper flushing
-- **HTTP/2 Push**: Server push support for modern browsers
+- **HTTP/2 Push**: Supports `http.Pusher` when the underlying server provides it
 
 ## Quick Start
 
@@ -51,8 +51,8 @@ package main
 import (
     "net/http"
     
-    "github.com/nissy/bon"
-    "github.com/nissy/bon/middleware"
+    "github.com/nissy/bon/v2"
+    "github.com/nissy/bon/v2/middleware"
 )
 
 func main() {
@@ -79,7 +79,7 @@ func main() {
 ## Installation
 
 ```bash
-go get github.com/nissy/bon
+go get github.com/nissy/bon/v2
 ```
 
 ## Route Patterns
@@ -98,13 +98,17 @@ Routes are matched in the following priority order (highest to lowest):
    ```go
    r.Get("/users/:id", handler)      // Captures id parameter
    r.Get("/posts/:category/:slug", handler)
+   r.Get("/api/v:version/users", handler) // Captures version from v1, v2, etc.
    ```
 
-3. **Wildcard routes** - Catch-all pattern
+3. **Wildcard routes** - Catch-all or single-segment wildcard pattern
    ```go
-   r.Get("/files/*", handler)        // Lowest priority
+   r.Get("/files/*", handler)        // Matches the remaining path
    r.Get("/api/*", handler)
+   r.Get("/files/*/metadata", handler) // * matches one segment before /metadata
    ```
+
+Parameter names are read with `bon.URLParam(r, "name")`. Wildcard values are not exposed through `URLParam`.
 
 ### Parameter Extraction
 
@@ -197,43 +201,46 @@ r.Use(middleware.Timeout(30 * time.Second))
 
 ## Groups and Routes
 
-### Group - Inherits Middleware
+### Group - Prefix and Group Middleware
 
-Groups inherit middleware from their parent and prefix all routes:
+Groups prefix all routes and inherit middleware from parent groups. Global middleware registered with `r.Use(...)` is applied to every route at the router level.
 
 ```go
 r := bon.NewRouter()
-r.Use(middleware.Recovery())  // Global middleware
+r.Use(middleware.Recovery())  // Global middleware applied to every route
 
-// API group inherits Recovery
 api := r.Group("/api")
 api.Use(middleware.BasicAuth(users))  // Group middleware
 
-// All routes inherit Recovery + BasicAuth
+// These routes use global Recovery + group BasicAuth
 api.Get("/users", listUsers)     // GET /api/users
 api.Post("/users", createUser)   // POST /api/users
 
-// Nested group inherits all parent middleware
+// Nested group inherits parent group middleware
 v1 := api.Group("/v1")
-v1.Get("/posts", listPosts)      // GET /api/v1/posts (Recovery + BasicAuth)
+v1.Get("/posts", listPosts)      // GET /api/v1/posts
 ```
 
-### Route - Standalone
+### Route - Standalone From Group Middleware
 
-Routes are completely independent and don't inherit any middleware:
+Routes created with `Route()` do not inherit group middleware. Global middleware registered with `r.Use(...)` still applies.
 
 ```go
 r := bon.NewRouter()
-r.Use(middleware.BasicAuth(users))  // Global middleware
+r.Use(middleware.Recovery())  // Global middleware still applies
 
-// This route is NOT affected by global middleware
-standalone := r.Route()
-standalone.Get("/public", handler)  // No auth required
+api := r.Group("/api")
+api.Use(middleware.BasicAuth(users))
+api.Get("/private", handler)  // Uses Recovery + BasicAuth
+
+// This route keeps the /api prefix but does not inherit BasicAuth
+public := api.Route()
+public.Get("/public", handler)  // Uses Recovery only
 
 // Must explicitly add middleware if needed
-webhook := r.Route()
+webhook := api.Route()
 webhook.Use(webhookMiddleware)
-webhook.Post("/webhook", handler)   // Only webhook validation, no auth
+webhook.Post("/webhook", handler)   // Uses Recovery + webhookMiddleware
 ```
 
 ## HTTP Methods
@@ -286,23 +293,17 @@ Security features:
 ```go
 r := bon.NewRouter()
 
-// Method 1: Direct assignment
-r.NotFound = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+// SetNotFound rebuilds the internal middleware chain for 404 responses.
+r.SetNotFound(func(w http.ResponseWriter, r *http.Request) {
     w.Header().Set("Content-Type", "application/json")
     w.WriteHeader(404)
     w.Write([]byte(`{"error":"not found"}`))
-})
-
-// Method 2: Using SetNotFound (respects middleware)
-r.SetNotFound(func(w http.ResponseWriter, r *http.Request) {
-    w.WriteHeader(404)
-    w.Write([]byte("Custom 404 page"))
 })
 ```
 
 ## WebSocket, SSE, and HTTP/2 Push Support
 
-Bon supports WebSocket, Server-Sent Events (SSE), and HTTP/2 Push through Go's standard interfaces. When using middleware that wraps the ResponseWriter (like the Timeout middleware), you need to access the underlying ResponseWriter through the `Unwrap()` method.
+Bon works with WebSocket, Server-Sent Events (SSE), and HTTP/2 Push through Go's standard interfaces. When using middleware that wraps the ResponseWriter (like the Timeout middleware), access the underlying ResponseWriter through the `Unwrap()` method when needed.
 
 ### WebSocket Support
 
@@ -311,8 +312,8 @@ package main
 
 import (
     "net/http"
-    "github.com/nissy/bon"
-    "github.com/nissy/bon/middleware"
+    "github.com/nissy/bon/v2"
+    "github.com/nissy/bon/v2/middleware"
     "github.com/gorilla/websocket"
 )
 
@@ -370,8 +371,8 @@ import (
     "fmt"
     "net/http"
     "time"
-    "github.com/nissy/bon"
-    "github.com/nissy/bon/middleware"
+    "github.com/nissy/bon/v2"
+    "github.com/nissy/bon/v2/middleware"
 )
 
 func main() {
@@ -428,8 +429,8 @@ package main
 
 import (
     "net/http"
-    "github.com/nissy/bon"
-    "github.com/nissy/bon/middleware"
+    "github.com/nissy/bon/v2"
+    "github.com/nissy/bon/v2/middleware"
 )
 
 func main() {
@@ -526,8 +527,8 @@ import (
     "net/http"
     "time"
     
-    "github.com/nissy/bon"
-    "github.com/nissy/bon/middleware"
+    "github.com/nissy/bon/v2"
+    "github.com/nissy/bon/v2/middleware"
 )
 
 type User struct {
@@ -580,8 +581,8 @@ import (
     "net/http"
     "time"
     
-    "github.com/nissy/bon"
-    "github.com/nissy/bon/middleware"
+    "github.com/nissy/bon/v2"
+    "github.com/nissy/bon/v2/middleware"
 )
 
 func main() {
@@ -624,8 +625,8 @@ package main
 import (
     "net/http"
     
-    "github.com/nissy/bon"
-    "github.com/nissy/bon/middleware"
+    "github.com/nissy/bon/v2"
+    "github.com/nissy/bon/v2/middleware"
 )
 
 func main() {
@@ -663,20 +664,28 @@ func main() {
 }
 ```
 
+## Benchmarks
+
+Run benchmarks locally with:
+
+```bash
+go test -bench=. ./...
+```
+
 ## API Documentation
 
-For detailed API documentation, see [pkg.go.dev/github.com/nissy/bon](https://pkg.go.dev/github.com/nissy/bon).
+For detailed API documentation, see [pkg.go.dev/github.com/nissy/bon/v2](https://pkg.go.dev/github.com/nissy/bon/v2).
 
 ## Performance Tips
 
-1. **Route Registration**: Order doesn't matter - the router automatically optimizes
+1. **Route Registration**: Static routes are fastest; route priority is static, then parameters, then wildcards
 2. **Middleware Placement**: Apply at the appropriate level for best performance
 3. **Static Routes**: Use exact paths when possible for fastest matching
 4. **Parameter Reuse**: The router pools context objects automatically
 
 ## Requirements
 
-- Go 1.18 or higher
+- Go 1.23.6 or higher
 
 ## Testing
 
@@ -699,5 +708,5 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 MIT
 
-[GoDoc]: https://pkg.go.dev/github.com/nissy/bon
-[GoDoc Widget]: https://pkg.go.dev/badge/github.com/nissy/bon
+[GoDoc]: https://pkg.go.dev/github.com/nissy/bon/v2
+[GoDoc Widget]: https://pkg.go.dev/badge/github.com/nissy/bon/v2
