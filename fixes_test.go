@@ -7,45 +7,45 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
-	
-	"github.com/nissy/bon/middleware"
+
+	"github.com/nissy/bon/v2/middleware"
 )
 
 // Test panic recovery
 func TestMuxPanicRecovery(t *testing.T) {
 	r := NewRouter()
-	
+
 	// Add recovery middleware
 	r.Use(middleware.Recovery())
-	
+
 	// Handler that causes panic
 	r.Get("/panic", func(w http.ResponseWriter, r *http.Request) {
 		panic("test panic in handler")
 	})
-	
+
 	// Normal handler
 	r.Get("/normal", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("OK"))
 	})
-	
+
 	// Test panic
 	req1 := httptest.NewRequest("GET", "/panic", nil)
 	rec1 := httptest.NewRecorder()
 	r.ServeHTTP(rec1, req1)
-	
+
 	if rec1.Code != http.StatusInternalServerError {
 		t.Errorf("Expected status 500 for panic, got %d", rec1.Code)
 	}
-	
+
 	if rec1.Body.String() != "Internal Server Error\n" {
 		t.Errorf("Expected 'Internal Server Error', got %s", rec1.Body.String())
 	}
-	
+
 	// Verify normal requests still work
 	req2 := httptest.NewRequest("GET", "/normal", nil)
 	rec2 := httptest.NewRecorder()
 	r.ServeHTTP(rec2, req2)
-	
+
 	if rec2.Code != 200 {
 		t.Errorf("Expected status 200 for normal request, got %d", rec2.Code)
 	}
@@ -57,7 +57,7 @@ type testCtxKey string
 // Test context propagation in middleware (fixed version)
 func TestMiddlewareContextPropagationFixed(t *testing.T) {
 	r := NewRouter()
-	
+
 	// Middleware that sets values in context
 	contextMiddleware := func(key, value string) func(http.Handler) http.Handler {
 		return func(next http.Handler) http.Handler {
@@ -67,22 +67,22 @@ func TestMiddlewareContextPropagationFixed(t *testing.T) {
 			})
 		}
 	}
-	
+
 	r.Use(contextMiddleware("key1", "value1"))
 	r.Use(contextMiddleware("key2", "value2"))
-	
+
 	r.Get("/context", func(w http.ResponseWriter, r *http.Request) {
 		val1 := r.Context().Value(testCtxKey("key1"))
 		val2 := r.Context().Value(testCtxKey("key2"))
-		
+
 		response := fmt.Sprintf("key1=%v,key2=%v", val1, val2)
 		_, _ = w.Write([]byte(response))
 	})
-	
+
 	req := httptest.NewRequest("GET", "/context", nil)
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
-	
+
 	expected := "key1=value1,key2=value2"
 	if rec.Body.String() != expected {
 		t.Errorf("Expected %s, got %s", expected, rec.Body.String())
@@ -92,11 +92,11 @@ func TestMiddlewareContextPropagationFixed(t *testing.T) {
 // Test conditional headers in CORS middleware
 func TestCORSConditionalHeaders(t *testing.T) {
 	tests := []struct {
-		name               string
-		allowCredentials   bool
-		expectCredHeader   bool
-		method             string
-		expectedStatus     int
+		name             string
+		allowCredentials bool
+		expectCredHeader bool
+		method           string
+		expectedStatus   int
 	}{
 		{
 			name:             "Credentials true",
@@ -120,23 +120,23 @@ func TestCORSConditionalHeaders(t *testing.T) {
 			expectedStatus:   204,
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			r := NewRouter()
-			
+
 			corsConfig := middleware.AccessControlConfig{
 				AllowOrigin:      "*",
 				AllowCredentials: tt.allowCredentials,
 				AllowMethods:     []string{"GET", "POST"},
 			}
-			
+
 			r.Use(middleware.CORS(corsConfig))
-			
+
 			r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
 				_, _ = w.Write([]byte("OK"))
 			})
-			
+
 			// Also register OPTIONS method (for CORS preflight)
 			r.Handle("OPTIONS", "/test", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				// CORS middleware should handle this, so we shouldn't reach here
@@ -144,15 +144,15 @@ func TestCORSConditionalHeaders(t *testing.T) {
 				w.WriteHeader(http.StatusInternalServerError)
 				_, _ = w.Write([]byte("Should not reach here"))
 			}))
-			
+
 			req := httptest.NewRequest(tt.method, "/test", nil)
 			rec := httptest.NewRecorder()
 			r.ServeHTTP(rec, req)
-			
+
 			if rec.Code != tt.expectedStatus {
 				t.Errorf("Expected status %d, got %d", tt.expectedStatus, rec.Code)
 			}
-			
+
 			// For OPTIONS requests, check if CORS headers are set
 			if tt.method == "OPTIONS" {
 				originHeader := rec.Header().Get("Access-Control-Allow-Origin")
@@ -160,7 +160,7 @@ func TestCORSConditionalHeaders(t *testing.T) {
 					t.Errorf("Expected Access-Control-Allow-Origin header to be '*', got %s", originHeader)
 				}
 			}
-			
+
 			credHeader := rec.Header().Get("Access-Control-Allow-Credentials")
 			if tt.expectCredHeader && credHeader != "true" {
 				t.Errorf("Expected Access-Control-Allow-Credentials header to be 'true', got %s", credHeader)
@@ -174,10 +174,10 @@ func TestCORSConditionalHeaders(t *testing.T) {
 // Test goroutine leak prevention in Timeout middleware
 func TestTimeoutNoGoroutineLeak(t *testing.T) {
 	r := NewRouter()
-	
+
 	// 100ms timeout
 	r.Use(middleware.Timeout(100 * time.Millisecond))
-	
+
 	// Long-running handler
 	r.Get("/slow", func(w http.ResponseWriter, r *http.Request) {
 		select {
@@ -188,22 +188,22 @@ func TestTimeoutNoGoroutineLeak(t *testing.T) {
 			return
 		}
 	})
-	
+
 	req := httptest.NewRequest("GET", "/slow", nil)
 	rec := httptest.NewRecorder()
-	
+
 	// Record goroutine count
 	// In actual test, use runtime.NumGoroutine
-	
+
 	r.ServeHTTP(rec, req)
-	
+
 	if rec.Code != http.StatusGatewayTimeout {
 		t.Errorf("Expected status %d, got %d", http.StatusGatewayTimeout, rec.Code)
 	}
-	
+
 	// Wait a bit after timeout to verify goroutine termination
 	time.Sleep(300 * time.Millisecond)
-	
+
 	// In actual test, check goroutine count again here
 }
 
@@ -212,10 +212,10 @@ func TestFileServerSecurity(t *testing.T) {
 	// Create temporary directory for testing
 	tempDir := t.TempDir()
 	_ = tempDir // Keep for future use
-	
+
 	// File server security is tested in file.go's resolveFilePath method
 	// Keep here as placeholder for integration test
-	
+
 	tests := []struct {
 		name           string
 		path           string
@@ -237,7 +237,7 @@ func TestFileServerSecurity(t *testing.T) {
 			expectedStatus: 403,
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// In actual test, test file server endpoint
@@ -249,11 +249,11 @@ func TestFileServerSecurity(t *testing.T) {
 // Test multiple middleware order and propagation
 func TestMiddlewareChainOrder(t *testing.T) {
 	r := NewRouter()
-	
+
 	var order []string
-	
+
 	type mwKey string
-	
+
 	// Middleware 1
 	mw1 := func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -263,7 +263,7 @@ func TestMiddlewareChainOrder(t *testing.T) {
 			order = append(order, "MW1-after")
 		})
 	}
-	
+
 	// Middleware 2
 	mw2 := func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -277,10 +277,10 @@ func TestMiddlewareChainOrder(t *testing.T) {
 			order = append(order, "MW2-after")
 		})
 	}
-	
+
 	r.Use(mw1)
 	r.Use(mw2)
-	
+
 	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
 		order = append(order, "Handler")
 		// Verify both middleware values are accessible
@@ -292,13 +292,13 @@ func TestMiddlewareChainOrder(t *testing.T) {
 		}
 		_, _ = w.Write([]byte("OK"))
 	})
-	
+
 	order = []string{} // Reset
-	
+
 	req := httptest.NewRequest("GET", "/test", nil)
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
-	
+
 	expectedOrder := []string{
 		"MW1-before",
 		"MW2-before",
@@ -306,11 +306,11 @@ func TestMiddlewareChainOrder(t *testing.T) {
 		"MW2-after",
 		"MW1-after",
 	}
-	
+
 	if len(order) != len(expectedOrder) {
 		t.Fatalf("Expected %d calls, got %d: %v", len(expectedOrder), len(order), order)
 	}
-	
+
 	for i, expected := range expectedOrder {
 		if order[i] != expected {
 			t.Errorf("Order[%d]: expected %s, got %s", i, expected, order[i])
